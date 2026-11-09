@@ -1,0 +1,107 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isSuperAdmin() {
+      return isAuthenticated() && request.auth.token.admin == true;
+    }
+
+    function getUserRole(businessId) {
+      return get(/databases/$(database)/documents/businesses/$(businessId)/members/$(request.auth.uid)).data.role;
+    }
+
+    function isOwner(businessId) {
+      return isAuthenticated() && (request.auth.uid == businessId || getUserRole(businessId) == 'owner' || isSuperAdmin());
+    }
+
+    function isCashier(businessId) {
+      return isAuthenticated() && (getUserRole(businessId) == 'cashier');
+    }
+
+    // Platform collections (Payment accounts, etc.) - Read by all auth, Write ONLY by Super-Admin
+    match /platform/{document=**} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    match /pricing_plans/{planId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    match /admin_payments/{paymentId} {
+      allow create: if isAuthenticated() && request.resource.data.businessId == request.auth.uid;
+      allow read, update, delete: if isSuperAdmin() || (isAuthenticated() && resource.data.businessId == request.auth.uid);
+    }
+
+    match /support_tickets/{ticketId} {
+      allow create: if isAuthenticated() && request.resource.data.businessId == request.auth.uid;
+      allow read, update: if isSuperAdmin() || (isAuthenticated() && resource.data.businessId == request.auth.uid);
+      allow delete: if isSuperAdmin();
+    }
+
+    // Tenant / Business documents
+    match /businesses/{businessId} {
+      allow read, write: if isOwner(businessId) || isCashier(businessId) || isSuperAdmin();
+
+      match /members/{memberId} {
+        allow read: if isOwner(businessId) || isCashier(businessId) || isSuperAdmin() || request.auth.uid == memberId;
+        allow write: if isOwner(businessId) || isSuperAdmin();
+      }
+
+      match /products/{productId} {
+        allow read: if isOwner(businessId) || isCashier(businessId) || isSuperAdmin();
+        allow write: if isOwner(businessId) || isSuperAdmin();
+      }
+
+      match /product_secrets/{productId} {
+        allow read, write: if isOwner(businessId) || isSuperAdmin();
+      }
+
+      match /sales/{saleId} {
+        allow read, write: if isOwner(businessId) || isCashier(businessId) || isSuperAdmin();
+      }
+
+      match /clients/{clientId} {
+        allow read, write: if isOwner(businessId) || isCashier(businessId) || isSuperAdmin();
+      }
+
+      match /debts/{debtId} {
+        allow read, write: if isOwner(businessId) || isCashier(businessId) || isSuperAdmin();
+      }
+
+      match /movements/{movementId} {
+        allow read, write: if isOwner(businessId) || isSuperAdmin();
+      }
+
+      match /expenses/{expenseId} {
+        allow read, write: if isOwner(businessId) || isSuperAdmin();
+      }
+
+      match /suppliers/{supplierId} {
+        allow read, write: if isOwner(businessId) || isSuperAdmin();
+      }
+
+      match /purchases/{purchaseId} {
+        allow read, write: if isOwner(businessId) || isSuperAdmin();
+      }
+
+      match /audit_logs/{logId} {
+        allow read, write: if isOwner(businessId) || isSuperAdmin();
+      }
+
+      match /ai_analysis/{analysisId} {
+        allow read, write: if isOwner(businessId) || isSuperAdmin();
+      }
+
+      match /subscription/{subId} {
+        allow read: if isOwner(businessId) || isCashier(businessId) || isSuperAdmin();
+        allow write: if isOwner(businessId) || isSuperAdmin();
+      }
+    }
+  }
+}

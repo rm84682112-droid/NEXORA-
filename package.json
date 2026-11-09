@@ -1,0 +1,8 @@
+{
+  "name": "nexora-landing",
+  "version": "1.0.0",
+  "description": "NEXORA Landing Page e Distribuição APK",
+  "scripts": {
+    "build": "echo 'Static build complete'"
+  }
+}

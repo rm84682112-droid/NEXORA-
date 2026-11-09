@@ -1,0 +1,107 @@
+{
+  "entities": {
+    "Business": {
+      "collection": "businesses",
+      "path": "/businesses/{businessId}",
+      "fields": {
+        "name": { "type": "string", "required": true },
+        "ownerUid": { "type": "string", "required": true },
+        "location": { "type": "string", "required": true },
+        "currency": { "type": "string", "required": true },
+        "plan": { "type": "string", "required": true },
+        "planExpiry": { "type": "timestamp", "required": false },
+        "createdAt": { "type": "timestamp", "required": true },
+        "updatedAt": { "type": "timestamp", "required": true }
+      }
+    },
+    "Product": {
+      "collection": "products",
+      "path": "/businesses/{businessId}/products/{productId}",
+      "fields": {
+        "name": { "type": "string", "required": true },
+        "category": { "type": "string", "required": true },
+        "description": { "type": "string", "required": false },
+        "unitType": { "type": "string", "required": true },
+        "unitsPerPackage": { "type": "number", "required": true },
+        "costPrice": { "type": "number", "required": true },
+        "sellingPrice": { "type": "number", "required": true },
+        "currentStock": { "type": "number", "required": true },
+        "minStock": { "type": "number", "required": true },
+        "barcode": { "type": "string", "required": false },
+        "iconEmoji": { "type": "string", "required": false },
+        "createdAt": { "type": "timestamp", "required": true },
+        "updatedAt": { "type": "timestamp", "required": true }
+      }
+    },
+    "Sale": {
+      "collection": "sales",
+      "path": "/businesses/{businessId}/sales/{saleId}",
+      "fields": {
+        "receiptNumber": { "type": "string", "required": true },
+        "timestamp": { "type": "number", "required": true },
+        "subtotal": { "type": "number", "required": true },
+        "discount": { "type": "number", "required": true },
+        "total": { "type": "number", "required": true },
+        "paymentMethod": { "type": "string", "required": true },
+        "amountPaid": { "type": "number", "required": true },
+        "change": { "type": "number", "required": true },
+        "operatorName": { "type": "string", "required": true },
+        "customerId": { "type": "string", "required": false },
+        "customerName": { "type": "string", "required": false },
+        "createdAt": { "type": "timestamp", "required": true }
+      }
+    },
+    "Client": {
+      "collection": "clients",
+      "path": "/businesses/{businessId}/clients/{clientId}",
+      "fields": {
+        "name": { "type": "string", "required": true },
+        "phone": { "type": "string", "required": true },
+        "address": { "type": "string", "required": false },
+        "creditLimit": { "type": "number", "required": true },
+        "totalDebt": { "type": "number", "required": true },
+        "notes": { "type": "string", "required": false },
+        "createdAt": { "type": "timestamp", "required": true },
+        "updatedAt": { "type": "timestamp", "required": true }
+      }
+    },
+    "Expense": {
+      "collection": "expenses",
+      "path": "/businesses/{businessId}/expenses/{expenseId}",
+      "fields": {
+        "description": { "type": "string", "required": true },
+        "amount": { "type": "number", "required": true },
+        "category": { "type": "string", "required": true },
+        "paymentMethod": { "type": "string", "required": true },
+        "date": { "type": "number", "required": true },
+        "notes": { "type": "string", "required": false },
+        "createdAt": { "type": "timestamp", "required": true }
+      }
+    },
+    "Supplier": {
+      "collection": "suppliers",
+      "path": "/businesses/{businessId}/suppliers/{supplierId}",
+      "fields": {
+        "name": { "type": "string", "required": true },
+        "phone": { "type": "string", "required": true },
+        "address": { "type": "string", "required": false },
+        "suppliedCategories": { "type": "string", "required": false },
+        "totalDebt": { "type": "number", "required": true },
+        "createdAt": { "type": "timestamp", "required": true },
+        "updatedAt": { "type": "timestamp", "required": true }
+      }
+    },
+    "Notification": {
+      "collection": "notifications",
+      "path": "/businesses/{businessId}/notifications/{notificationId}",
+      "fields": {
+        "title": { "type": "string", "required": true },
+        "message": { "type": "string", "required": true },
+        "type": { "type": "string", "required": true },
+        "isRead": { "type": "boolean", "required": true },
+        "timestamp": { "type": "number", "required": true },
+        "createdAt": { "type": "timestamp", "required": true }
+      }
+    }
+  }
+}

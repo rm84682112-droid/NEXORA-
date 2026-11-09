@@ -1,0 +1,6 @@
+{
+  "name": "NEXORA",
+  "description": "Plataforma de gestão comercial inteligente para comerciantes em Moçambique e além.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
