@@ -25,7 +25,11 @@ sealed class PhoneAuthState {
 
 class FirebaseAuthenticationService private constructor() {
 
-    val auth: FirebaseAuth = FirebaseAuth.getInstance()
+    val auth: FirebaseAuth? = try {
+        FirebaseAuth.getInstance()
+    } catch (e: Exception) {
+        null
+    }
 
     // Configuração para ligar verificação por SMS no futuro sem custos imediatos
     var isSmsVerificationEnabled: Boolean = false
@@ -33,23 +37,23 @@ class FirebaseAuthenticationService private constructor() {
     private val _authState = MutableStateFlow<PhoneAuthState>(PhoneAuthState.Idle)
     val authState: StateFlow<PhoneAuthState> = _authState.asStateFlow()
 
-    private val _currentUser = MutableStateFlow<FirebaseUser?>(auth.currentUser)
+    private val _currentUser = MutableStateFlow<FirebaseUser?>(auth?.currentUser)
     val currentUser: StateFlow<FirebaseUser?> = _currentUser.asStateFlow()
 
     init {
-        auth.addAuthStateListener { firebaseAuth ->
+        auth?.addAuthStateListener { firebaseAuth ->
             _currentUser.value = firebaseAuth.currentUser
         }
     }
 
     val isUserLoggedIn: Boolean
-        get() = auth.currentUser != null
+        get() = auth?.currentUser != null
 
     val currentUid: String?
-        get() = auth.currentUser?.uid
+        get() = auth?.currentUser?.uid
 
     val currentPhoneNumber: String?
-        get() = auth.currentUser?.phoneNumber
+        get() = auth?.currentUser?.phoneNumber
 
     /**
      * Converte o número de telemóvel Moçambicano para um identificador de e-mail compatível com Firebase Auth.
@@ -66,8 +70,9 @@ class FirebaseAuthenticationService private constructor() {
      */
     suspend fun createAccountWithPhoneAndPassword(phoneNumber: String, password: String): Result<FirebaseUser> {
         return try {
+            val fa = auth ?: throw Exception("Serviço Firebase Auth não inicializado.")
             val emailIdentifier = phoneToEmailIdentifier(phoneNumber)
-            val authResult = auth.createUserWithEmailAndPassword(emailIdentifier, password).await()
+            val authResult = fa.createUserWithEmailAndPassword(emailIdentifier, password).await()
             val user = authResult.user ?: throw Exception("Utilizador não retornado pelo Firebase Auth.")
             _currentUser.value = user
             Result.success(user)
@@ -91,8 +96,9 @@ class FirebaseAuthenticationService private constructor() {
      */
     suspend fun signInWithPhoneAndPassword(phoneNumber: String, password: String): Result<FirebaseUser> {
         return try {
+            val fa = auth ?: throw Exception("Serviço Firebase Auth não inicializado.")
             val emailIdentifier = phoneToEmailIdentifier(phoneNumber)
-            val authResult = auth.signInWithEmailAndPassword(emailIdentifier, password).await()
+            val authResult = fa.signInWithEmailAndPassword(emailIdentifier, password).await()
             val user = authResult.user ?: throw Exception("Utilizador não retornado pelo Firebase Auth.")
             _currentUser.value = user
             Result.success(user)
@@ -145,7 +151,13 @@ class FirebaseAuthenticationService private constructor() {
             }
         }
 
-        val optionsBuilder = PhoneAuthOptions.newBuilder(auth)
+        val fa = auth
+        if (fa == null) {
+            _authState.value = PhoneAuthState.Error("Serviço de autenticação não inicializado.")
+            return
+        }
+
+        val optionsBuilder = PhoneAuthOptions.newBuilder(fa)
             .setPhoneNumber(formattedPhone)
             .setTimeout(timeoutSeconds, TimeUnit.SECONDS)
             .setActivity(activity)
@@ -160,8 +172,9 @@ class FirebaseAuthenticationService private constructor() {
 
     suspend fun verifyOtpCode(verificationId: String, code: String): Result<FirebaseUser?> {
         return try {
+            val fa = auth ?: throw Exception("Serviço Firebase Auth não inicializado.")
             val credential = PhoneAuthProvider.getCredential(verificationId, code)
-            val result = auth.signInWithCredential(credential).await()
+            val result = fa.signInWithCredential(credential).await()
             _authState.value = PhoneAuthState.VerificationCompleted(result.user)
             _currentUser.value = result.user
             Result.success(result.user)
@@ -173,7 +186,8 @@ class FirebaseAuthenticationService private constructor() {
     }
 
     fun signInWithPhoneCredential(credential: PhoneAuthCredential) {
-        auth.signInWithCredential(credential)
+        val fa = auth ?: return
+        fa.signInWithCredential(credential)
             .addOnCompleteListener { task ->
                 if (task.isSuccessful) {
                     val user = task.result?.user
@@ -191,7 +205,7 @@ class FirebaseAuthenticationService private constructor() {
     }
 
     fun signOut() {
-        auth.signOut()
+        auth?.signOut()
         _currentUser.value = null
         _authState.value = PhoneAuthState.Idle
     }

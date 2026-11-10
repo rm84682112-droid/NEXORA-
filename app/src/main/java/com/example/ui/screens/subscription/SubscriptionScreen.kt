@@ -274,11 +274,14 @@ private fun PlanComparisonCard(
     isCurrent: Boolean,
     onSelect: () -> Unit
 ) {
-    Card(
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = NavySurfaceVariant),
-        border = androidx.compose.foundation.BorderStroke(1.dp, if (isCurrent) NexoraCyanAccent else NavyCardBorder)
+        shape = RoundedCornerShape(12.dp),
+        color = NavySurfaceVariant,
+        border = androidx.compose.foundation.BorderStroke(
+            if (isCurrent) 1.5.dp else 1.dp,
+            if (isCurrent) NexoraCyanAccent else NavyCardBorder
+        )
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -286,11 +289,29 @@ private fun PlanComparisonCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(tier.title, color = TextWhite, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(tier.title, color = TextWhite, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    if (isCurrent) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Surface(
+                            color = NexoraCyanAccent.copy(alpha = 0.15f),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = "Atual",
+                                color = NexoraCyanAccent,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+
                 Text(
                     text = if (tier.monthlyPriceMT == 0.0) "Grátis" else "${Formatters.formatMoney(tier.monthlyPriceMT)}/mês",
                     color = NexoraCyanAccent,
-                    fontWeight = FontWeight.ExtraBold,
+                    fontWeight = FontWeight.Bold,
                     fontSize = 15.sp
                 )
             }
@@ -306,8 +327,8 @@ private fun PlanComparisonCard(
                 Spacer(modifier = Modifier.height(12.dp))
                 Button(
                     onClick = onSelect,
-                    modifier = Modifier.fillMaxWidth().height(42.dp),
-                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth().height(44.dp),
+                    shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = NexoraBluePrimary)
                 ) {
                     Text("Escolher este Plano", fontSize = 12.sp, fontWeight = FontWeight.Bold)

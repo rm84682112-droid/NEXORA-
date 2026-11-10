@@ -44,6 +44,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -401,10 +402,10 @@ private fun StockMetricCard(
     color: Color,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = NavySurfaceVariant),
+        shape = RoundedCornerShape(12.dp),
+        color = NavySurfaceVariant,
         border = androidx.compose.foundation.BorderStroke(1.dp, NavyCardBorder)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -422,10 +423,16 @@ private fun StockProductRow(
     product: Product,
     onAdjust: () -> Unit
 ) {
-    Card(
+    val (color, text) = when {
+        product.isOutOfStock -> Pair(NexoraRedAlert, "0 un")
+        product.isLowStock -> Pair(NexoraAmberWarning, "${product.currentStock} un")
+        else -> Pair(NexoraGreenSuccess, "${product.currentStock} un")
+    }
+
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = NavySurfaceVariant),
+        shape = RoundedCornerShape(12.dp),
+        color = NavySurfaceVariant,
         border = androidx.compose.foundation.BorderStroke(1.dp, NavyCardBorder)
     ) {
         Row(
@@ -439,7 +446,7 @@ private fun StockProductRow(
                 Box(
                     modifier = Modifier
                         .size(38.dp)
-                        .background(NavyCardElevated, RoundedCornerShape(10.dp)),
+                        .background(NavySurface, RoundedCornerShape(8.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(text = product.iconEmoji, fontSize = 20.sp)
@@ -451,37 +458,36 @@ private fun StockProductRow(
                     Text(
                         text = product.name,
                         color = TextWhite,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.SemiBold,
                         fontSize = 13.sp
                     )
                     Text(
-                        text = "Mínimo definido: ${product.minStock} un",
+                        text = "Mínimo: ${product.minStock} un • Preço: ${Formatters.formatMoney(product.sellingPrice)}",
                         color = TextMuted,
-                        fontSize = 10.sp
+                        fontSize = 11.sp
                     )
                 }
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                val (color, text) = when {
-                    product.isOutOfStock -> Pair(NexoraRedAlert, "0 un")
-                    product.isLowStock -> Pair(NexoraAmberWarning, "${product.currentStock} un")
-                    else -> Pair(NexoraGreenSuccess, "${product.currentStock} un")
-                }
-
-                Box(
-                    modifier = Modifier
-                        .background(color.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                Surface(
+                    color = color.copy(alpha = 0.12f),
+                    shape = RoundedCornerShape(6.dp)
                 ) {
-                    Text(text = text, color = color, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text(
+                        text = text,
+                        color = color,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                    )
                 }
 
                 Spacer(modifier = Modifier.width(8.dp))
 
                 IconButton(
                     onClick = onAdjust,
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(36.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.SwapVert,

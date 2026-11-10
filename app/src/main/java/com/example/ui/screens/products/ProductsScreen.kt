@@ -394,131 +394,138 @@ private fun ProductCard(
     onDelete: () -> Unit
 ) {
     val canViewProfits = currentUser.role == UserRole.DONO
+    val (stockColor, stockLabel) = when {
+        product.isOutOfStock -> Pair(NexoraRedAlert, "Esgotado")
+        product.isLowStock -> Pair(NexoraAmberWarning, "Stock Baixo (${product.currentStock})")
+        else -> Pair(NexoraGreenSuccess, "${product.currentStock} un")
+    }
 
-    Card(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
             .testTag("product_card_${product.id}"),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = NavySurfaceVariant),
+        shape = RoundedCornerShape(12.dp),
+        color = NavySurfaceVariant,
         border = androidx.compose.foundation.BorderStroke(1.dp, NavyCardBorder)
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp)
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            // Leading Icon Badge with stock status pip
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .background(NavySurface, RoundedCornerShape(10.dp)),
+                contentAlignment = Alignment.Center
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                    Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .background(NexoraBluePrimary.copy(alpha = 0.2f), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(text = product.iconEmoji, fontSize = 22.sp)
-                    }
+                Text(text = product.iconEmoji, fontSize = 22.sp)
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .background(stockColor, CircleShape)
+                        .align(Alignment.TopEnd)
+                )
+            }
 
-                    Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(14.dp))
 
-                    Column {
+            // Main Product Details
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = product.name,
+                    color = TextWhite,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 15.sp,
+                    maxLines = 1
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = product.category,
+                        color = TextMuted,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    if (product.barcode.isNotBlank()) {
                         Text(
-                            text = product.name,
-                            color = TextWhite,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp
+                            text = " • #${product.barcode}",
+                            color = TextMuted.copy(alpha = 0.7f),
+                            fontSize = 11.sp
                         )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = product.category,
-                                color = NexoraCyanAccent,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                            if (product.barcode.isNotBlank()) {
-                                Text(
-                                    text = " • Cód: ${product.barcode}",
-                                    color = TextMuted,
-                                    fontSize = 11.sp
-                                )
-                            }
-                            if (!product.isActive) {
-                                Text(
-                                    text = " • [Inactivo]",
-                                    color = NexoraRedAlert,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
+                    }
+                    if (!product.isActive) {
+                        Text(
+                            text = " • Inativo",
+                            color = NexoraRedAlert,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
-
-                Row {
-                    if (canViewProfits) {
-                        IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
-                            Icon(Icons.Default.Edit, contentDescription = "Editar", tint = NexoraCyanAccent, modifier = Modifier.size(18.dp))
-                        }
-                        IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-                            Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = NexoraRedAlert, modifier = Modifier.size(18.dp))
-                        }
-                    }
+                Spacer(modifier = Modifier.height(4.dp))
+                // Stock pill
+                Surface(
+                    color = stockColor.copy(alpha = 0.12f),
+                    shape = RoundedCornerShape(6.dp)
+                ) {
+                    Text(
+                        text = stockLabel,
+                        color = stockColor,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 10.sp,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
-            HorizontalDivider(color = NavyCardBorder)
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.width(12.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val (stockText, stockColor) = when {
-                    product.isOutOfStock -> Pair("Esgotado (0 un)", NexoraRedAlert)
-                    product.isLowStock -> Pair("Baixo (${product.currentStock} un)", NexoraAmberWarning)
-                    else -> Pair("${product.currentStock} un em stock", NexoraGreenSuccess)
-                }
-
-                Box(
-                    modifier = Modifier
-                        .background(stockColor.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
+            // Right Financial Column & Actions
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = Formatters.formatMoney(product.sellingPrice),
+                    color = TextWhite,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+                if (canViewProfits) {
                     Text(
-                        text = stockText,
-                        color = stockColor,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp
+                        text = "+${Formatters.formatMoney(product.profitPerUnit)} (${product.profitMarginPercent.toInt()}%)",
+                        color = NexoraGreenSuccess,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
                     )
                 }
 
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = Formatters.formatMoney(product.sellingPrice),
-                        color = TextWhite,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 15.sp
-                    )
-                    if (canViewProfits) {
-                        Text(
-                            text = "Lucro: +${Formatters.formatMoney(product.profitPerUnit)} (${product.profitMarginPercent.toInt()}%)",
-                            color = NexoraGreenSuccess,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    } else {
-                        Text(
-                            text = "Preço Balcão",
-                            color = TextMuted,
-                            fontSize = 10.sp
-                        )
+                if (canViewProfits) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row {
+                        IconButton(
+                            onClick = onEdit,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Edit,
+                                contentDescription = "Editar",
+                                tint = NexoraCyanAccent,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        IconButton(
+                            onClick = onDelete,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = "Eliminar",
+                                tint = NexoraRedAlert,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
                 }
             }

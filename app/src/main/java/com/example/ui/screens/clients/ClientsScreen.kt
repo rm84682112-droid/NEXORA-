@@ -40,6 +40,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -308,13 +309,13 @@ private fun ClientCard(
     onClick: () -> Unit,
     onEdit: () -> Unit
 ) {
-    Card(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
             .testTag("client_card_${client.id}"),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = NavySurfaceVariant),
+        shape = RoundedCornerShape(12.dp),
+        color = NavySurfaceVariant,
         border = androidx.compose.foundation.BorderStroke(1.dp, NavyCardBorder)
     ) {
         Row(
@@ -328,14 +329,14 @@ private fun ClientCard(
                 Box(
                     modifier = Modifier
                         .size(42.dp)
-                        .background(NexoraBluePrimary.copy(alpha = 0.2f), CircleShape),
+                        .background(NavySurface, RoundedCornerShape(10.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Person,
                         contentDescription = null,
                         tint = NexoraCyanAccent,
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
 
@@ -345,11 +346,12 @@ private fun ClientCard(
                     Text(
                         text = client.name,
                         color = TextWhite,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.SemiBold,
                         fontSize = 14.sp
                     )
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "${client.phone} • ${client.address}",
+                        text = "${client.phone} • ${client.address.ifBlank { "Sem morada" }}",
                         color = TextMuted,
                         fontSize = 11.sp,
                         maxLines = 1
@@ -359,31 +361,31 @@ private fun ClientCard(
 
             Column(horizontalAlignment = Alignment.End) {
                 if (client.hasDebt) {
-                    Box(
-                        modifier = Modifier
-                            .background(NexoraRedAlert.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    Surface(
+                        color = NexoraRedAlert.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(6.dp)
                     ) {
                         Text(
                             text = Formatters.formatMoney(client.totalDebt),
                             color = NexoraRedAlert,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
                         )
                     }
                     Spacer(modifier = Modifier.height(2.dp))
-                    Text(text = "Fiado em aberto", color = TextMuted, fontSize = 9.sp)
+                    Text(text = "Fiado activo", color = TextMuted, fontSize = 10.sp)
                 } else {
-                    Box(
-                        modifier = Modifier
-                            .background(NexoraGreenSuccess.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    Surface(
+                        color = NexoraGreenSuccess.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(6.dp)
                     ) {
                         Text(
                             text = "Em dia",
                             color = NexoraGreenSuccess,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
                         )
                     }
                 }

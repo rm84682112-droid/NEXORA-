@@ -28,31 +28,24 @@ class GeminiBusinessService {
         Firebase.ai.generativeModel(MODEL_NAME)
     }
 
-    /**
-     * Teste real de ligação à Gemini Developer API via Firebase AI Logic.
-     * Envia o prompt de teste "Responde apenas: OK" e mede o tempo de resposta.
-     */
+    // Ping rápido para verificar conectividade antes de enviar lotes maiores
     suspend fun testAiConnection(): Result<String> = withContext(Dispatchers.IO) {
         try {
             val response = withTimeout(TIMEOUT_MS) {
                 generativeModel.generateContent("Responde apenas: OK")
             }
-            val text = response.text?.trim() ?: throw IllegalStateException("O modelo retornou uma resposta vazia.")
-            Log.d(TAG, "Teste de ligação Gemini com sucesso: $text")
+            val text = response.text?.trim() ?: throw IllegalStateException("Resposta vazia da API.")
+            Log.d(TAG, "Conexão OK: $text")
             Result.success(text)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Falha no teste de ligação Gemini AI", e)
+            Log.e(TAG, "Erro ao testar endpoint do modelo", e)
             Result.failure(e)
         }
     }
 
-    /**
-     * PLANO B: Motor de Análise Local baseado em regras em Kotlin.
-     * Gera um resumo real calculado diretamente a partir dos dados do Firestore,
-     * sem dependência de APIs externas ou saldo de quota.
-     */
+    // Fallback offline: agrega os totais diretamente em memória se a rede falhar
     fun generateRuleBasedSummary(
         storeName: String,
         products: List<Product>,

@@ -46,14 +46,181 @@ import com.example.data.model.DataIncident
 import com.example.data.model.IncidentSeverity
 import com.example.data.model.IncidentStatus
 import com.example.data.model.PlatformPaymentAccount
+import android.content.Context
+import com.example.data.local.NexoraDatabase
+import com.example.data.local.converters.RoomMappers.toDomain
+import com.example.data.local.converters.RoomMappers.toEntity
+import com.example.data.local.entities.SyncQueueEntity
+import com.example.data.sync.SyncManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
 
 object NexoraRepository {
+
+    // Persistent Database & Cloud Sync Bridge
+    private var database: NexoraDatabase? = null
+    private var syncManager: SyncManager? = null
+    private val repoScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val activeBusinessJobs = mutableListOf<Job>()
+
+    fun initialize(context: Context, customDb: NexoraDatabase? = null) {
+        val db = customDb ?: NexoraDatabase.getInstance(context)
+        database = db
+        syncManager = SyncManager(db)
+        val bizId = currentBusinessId()
+        if (bizId.isNotBlank() && _isLoggedIn.value) {
+            bindBusinessData(bizId)
+        }
+    }
+
+    private fun currentBusinessId(): String {
+        val id = _currentUser.value.businessId.ifBlank { _currentUser.value.id }
+        return id.ifBlank { "store-matriz-1" }
+    }
+
+    fun bindBusinessData(businessId: String) {
+        if (businessId.isBlank()) return
+        val db = database ?: return
+
+        activeBusinessJobs.forEach { it.cancel() }
+        activeBusinessJobs.clear()
+
+        // 1. Observe Products
+        activeBusinessJobs.add(
+            repoScope.launch {
+                db.productDao().getProductsFlow(businessId).collect { entities ->
+                    if (!_isDemoMode.value) {
+                        _products.value = entities.map { it.toDomain() }
+                    }
+                }
+            }
+        )
+
+        // 2. Observe Sales
+        activeBusinessJobs.add(
+            repoScope.launch {
+                db.saleDao().getSalesFlow(businessId).collect { entities ->
+                    if (!_isDemoMode.value) {
+                        _sales.value = entities.map { it.toDomain() }
+                    }
+                }
+            }
+        )
+
+        // 3. Observe Clients
+        activeBusinessJobs.add(
+            repoScope.launch {
+                db.clientDao().getClientsFlow(businessId).collect { entities ->
+                    if (!_isDemoMode.value) {
+                        _clients.value = entities.map { it.toDomain() }
+                    }
+                }
+            }
+        )
+
+        // 4. Observe Debts
+        activeBusinessJobs.add(
+            repoScope.launch {
+                db.debtDao().getDebtsFlow(businessId).collect { entities ->
+                    if (!_isDemoMode.value) {
+                        _debts.value = entities.map { it.toDomain() }
+                    }
+                }
+            }
+        )
+
+        // 5. Observe Expenses
+        activeBusinessJobs.add(
+            repoScope.launch {
+                db.expenseDao().getExpensesFlow(businessId).collect { entities ->
+                    if (!_isDemoMode.value) {
+                        _expenses.value = entities.map { it.toDomain() }
+                    }
+                }
+            }
+        )
+
+        // 6. Observe Suppliers
+        activeBusinessJobs.add(
+            repoScope.launch {
+                db.supplierDao().getSuppliersFlow(businessId).collect { entities ->
+                    if (!_isDemoMode.value) {
+                        _suppliers.value = entities.map { it.toDomain() }
+                    }
+                }
+            }
+        )
+
+        // 7. Observe Purchases
+        activeBusinessJobs.add(
+            repoScope.launch {
+                db.supplierDao().getPurchasesFlow(businessId).collect { entities ->
+                    if (!_isDemoMode.value) {
+                        _supplierPurchases.value = entities.map { it.toDomain() }
+                    }
+                }
+            }
+        )
+
+        // 8. Observe Movements
+        activeBusinessJobs.add(
+            repoScope.launch {
+                db.stockMovementDao().getMovementsFlow(businessId).collect { entities ->
+                    if (!_isDemoMode.value) {
+                        _movements.value = entities.map { it.toDomain() }
+                    }
+                }
+            }
+        )
+
+        // 9. Observe Notifications
+        activeBusinessJobs.add(
+            repoScope.launch {
+                db.notificationDao().getNotificationsFlow(businessId).collect { entities ->
+                    if (!_isDemoMode.value) {
+                        _notifications.value = entities.map { it.toDomain() }
+                    }
+                }
+            }
+        )
+
+        // 10. Observe Pending Sync Queue
+        activeBusinessJobs.add(
+            repoScope.launch {
+                db.syncQueueDao().getPendingCountFlow(businessId).collect { count ->
+                    _pendingSyncOperations.value = count
+                }
+            }
+        )
+
+        // 11. Initial Cloud Sync if online
+        if (_isOnline.value) {
+            repoScope.launch {
+                syncManager?.syncFromCloud(businessId)
+                syncManager?.drainQueue(businessId)
+                syncManager?.startRealtimeListeners(businessId)
+            }
+        }
+    }
+
+    fun syncNow() {
+        val bizId = currentBusinessId()
+        if (_isOnline.value && bizId.isNotBlank()) {
+            repoScope.launch {
+                syncManager?.drainQueue(bizId)
+                syncManager?.syncFromCloud(bizId)
+            }
+        }
+    }
 
     // Demo Mode toggle
     private val _isDemoMode = MutableStateFlow(false)
@@ -111,7 +278,7 @@ object NexoraRepository {
     private val authService = com.example.data.firebase.FirebaseAuthenticationService.getInstance()
 
     private val _currentUser = MutableStateFlow<User>(
-        authService.auth.currentUser?.let { fbUser ->
+        authService.auth?.currentUser?.let { fbUser ->
             val pNum = fbUser.email?.substringBefore("@") ?: ""
             User(
                 id = fbUser.uid,
@@ -224,14 +391,20 @@ object NexoraRepository {
 
     fun toggleOnlineMode() {
         _isOnline.value = !_isOnline.value
-        if (_isOnline.value && _pendingSyncOperations.value > 0) {
-            // Simulated automatic sync upon reconnect
-            _pendingSyncOperations.value = 0
+        val bizId = currentBusinessId()
+        if (_isOnline.value && bizId.isNotBlank()) {
+            repoScope.launch {
+                syncManager?.drainQueue(bizId)
+                syncManager?.syncFromCloud(bizId)
+                syncManager?.startRealtimeListeners(bizId)
+            }
             addSystemNotification(
-                title = "Sincronização Concluída",
-                message = "Todas as operações pendentes foram sincronizadas com o Firebase.",
+                title = "Ligação Restabelecida",
+                message = "A sincronizar dados pendentes com a nuvem...",
                 type = NotificationType.SISTEMA
             )
+        } else {
+            syncManager?.stopCloudListeners()
         }
     }
 
@@ -643,7 +816,7 @@ object NexoraRepository {
     private val _movements = MutableStateFlow<List<StockMovement>>(emptyList())
     val movements: StateFlow<List<StockMovement>> = _movements.asStateFlow()
 
-    // MODULE 8: Expenses
+    // Despesas operacionais
     private val initialExpenses = listOf(
         Expense(
             id = "exp-1",
@@ -680,7 +853,7 @@ object NexoraRepository {
     private val _expenses = MutableStateFlow<List<Expense>>(emptyList())
     val expenses: StateFlow<List<Expense>> = _expenses.asStateFlow()
 
-    // MODULE 9: Suppliers
+    // Fornecedores
     private val initialSuppliers = listOf(
         Supplier(
             id = "sup-1",
@@ -717,7 +890,7 @@ object NexoraRepository {
     private val _supplierPurchases = MutableStateFlow<List<SupplierPurchase>>(emptyList())
     val supplierPurchases: StateFlow<List<SupplierPurchase>> = _supplierPurchases.asStateFlow()
 
-    // MODULE 12: Notifications
+    // Notificações locais do sistema
     private val initialNotifications = listOf(
         AppNotification(
             id = "notif-1",
@@ -748,7 +921,7 @@ object NexoraRepository {
     private val _notifications = MutableStateFlow<List<AppNotification>>(emptyList())
     val notifications: StateFlow<List<AppNotification>> = _notifications.asStateFlow()
 
-    // MODULE 14: Subscription
+    // Subscrição e planos
     private val _subscription = MutableStateFlow(BusinessSubscription())
     val subscription: StateFlow<BusinessSubscription> = _subscription.asStateFlow()
 
@@ -756,6 +929,8 @@ object NexoraRepository {
 
     fun switchUser(user: User) {
         _currentUser.value = user
+        val bizId = user.businessId.ifBlank { user.id }
+        bindBusinessData(bizId)
     }
 
     fun addProduct(
@@ -802,7 +977,26 @@ object NexoraRepository {
             packageName = packageName.trim()
         )
 
-        _products.value = listOf(newProduct) + _products.value
+        val bizId = currentBusinessId()
+        _products.value = listOf(newProduct) + _products.value.filter { it.id != newProduct.id }
+
+        database?.let { db ->
+            repoScope.launch {
+                db.productDao().insertOrUpdate(newProduct.toEntity(bizId))
+                db.syncQueueDao().enqueue(
+                    SyncQueueEntity(
+                        businessId = bizId,
+                        entityType = "PRODUCT",
+                        entityId = newProduct.id,
+                        operation = "UPSERT",
+                        payloadJson = ""
+                    )
+                )
+                if (_isOnline.value) {
+                    syncManager?.drainQueue(bizId)
+                }
+            }
+        }
 
         addAuditLog(
             action = AuditAction.CREATE_PRODUCT,
@@ -824,10 +1018,11 @@ object NexoraRepository {
                 timestamp = System.currentTimeMillis()
             )
             _movements.value = listOf(movement) + _movements.value
-        }
-
-        if (!_isOnline.value) {
-            _pendingSyncOperations.value += 1
+            database?.let { db ->
+                repoScope.launch {
+                    db.stockMovementDao().insert(movement.toEntity(bizId))
+                }
+            }
         }
 
         return newProduct
@@ -837,6 +1032,25 @@ object NexoraRepository {
         val oldProduct = _products.value.find { it.id == product.id }
         _products.value = _products.value.map {
             if (it.id == product.id) product else it
+        }
+
+        val bizId = currentBusinessId()
+        database?.let { db ->
+            repoScope.launch {
+                db.productDao().insertOrUpdate(product.toEntity(bizId))
+                db.syncQueueDao().enqueue(
+                    SyncQueueEntity(
+                        businessId = bizId,
+                        entityType = "PRODUCT",
+                        entityId = product.id,
+                        operation = "UPSERT",
+                        payloadJson = ""
+                    )
+                )
+                if (_isOnline.value) {
+                    syncManager?.drainQueue(bizId)
+                }
+            }
         }
 
         val priceChanged = oldProduct != null && (oldProduct.sellingPrice != product.sellingPrice || oldProduct.costPrice != product.costPrice)
@@ -852,6 +1066,26 @@ object NexoraRepository {
     fun deleteProduct(productId: String) {
         val target = _products.value.find { it.id == productId }
         _products.value = _products.value.filter { it.id != productId }
+
+        val bizId = currentBusinessId()
+        database?.let { db ->
+            repoScope.launch {
+                db.productDao().deleteProduct(bizId, productId)
+                db.syncQueueDao().enqueue(
+                    SyncQueueEntity(
+                        businessId = bizId,
+                        entityType = "PRODUCT",
+                        entityId = productId,
+                        operation = "DELETE",
+                        payloadJson = ""
+                    )
+                )
+                if (_isOnline.value) {
+                    syncManager?.drainQueue(bizId)
+                }
+            }
+        }
+
         if (target != null) {
             addAuditLog(
                 action = AuditAction.DELETE_PRODUCT,
@@ -873,6 +1107,7 @@ object NexoraRepository {
         val updatedProduct = currentProduct.copy(currentStock = newStock)
         updateProduct(updatedProduct)
 
+        val bizId = currentBusinessId()
         val movement = StockMovement(
             id = "mov-${UUID.randomUUID().toString().take(8)}",
             productId = productId,
@@ -886,6 +1121,11 @@ object NexoraRepository {
             timestamp = System.currentTimeMillis()
         )
         _movements.value = listOf(movement) + _movements.value
+        database?.let { db ->
+            repoScope.launch {
+                db.stockMovementDao().insert(movement.toEntity(bizId))
+            }
+        }
 
         // Check stock thresholds to trigger notification if needed
         if (newStock == 0) {
@@ -944,10 +1184,25 @@ object NexoraRepository {
             notes = notes
         )
 
+        val bizId = currentBusinessId()
         _sales.value = listOf(sale) + _sales.value
 
-        if (!_isOnline.value) {
-            _pendingSyncOperations.value += 1
+        database?.let { db ->
+            repoScope.launch {
+                db.saleDao().insertSale(sale.toEntity(bizId))
+                db.syncQueueDao().enqueue(
+                    SyncQueueEntity(
+                        businessId = bizId,
+                        entityType = "SALE",
+                        entityId = sale.id,
+                        operation = "UPSERT",
+                        payloadJson = ""
+                    )
+                )
+                if (_isOnline.value) {
+                    syncManager?.drainQueue(bizId)
+                }
+            }
         }
 
         items.forEach { item ->
@@ -970,6 +1225,11 @@ object NexoraRepository {
                     timestamp = saleTimestamp
                 )
                 _movements.value = listOf(mov) + _movements.value
+                database?.let { db ->
+                    repoScope.launch {
+                        db.stockMovementDao().insert(mov.toEntity(bizId))
+                    }
+                }
 
                 if (newStock == 0) {
                     addSystemNotification(
@@ -1008,6 +1268,34 @@ object NexoraRepository {
                 _clients.value = _clients.value.map { c ->
                     if (c.id == client.id) c.copy(totalDebt = c.totalDebt + debtAmount) else c
                 }
+
+                database?.let { db ->
+                    repoScope.launch {
+                        db.debtDao().insertOrUpdate(newDebt.toEntity(bizId))
+                        db.clientDao().updateDebt(bizId, client.id, client.totalDebt + debtAmount)
+                        db.syncQueueDao().enqueue(
+                            SyncQueueEntity(
+                                businessId = bizId,
+                                entityType = "DEBT",
+                                entityId = newDebt.id,
+                                operation = "UPSERT",
+                                payloadJson = ""
+                            )
+                        )
+                        db.syncQueueDao().enqueue(
+                            SyncQueueEntity(
+                                businessId = bizId,
+                                entityType = "CLIENT",
+                                entityId = client.id,
+                                operation = "UPSERT",
+                                payloadJson = ""
+                            )
+                        )
+                        if (_isOnline.value) {
+                            syncManager?.drainQueue(bizId)
+                        }
+                    }
+                }
             }
         }
 
@@ -1040,6 +1328,34 @@ object NexoraRepository {
             } else c
         }
 
+        val bizId = currentBusinessId()
+        database?.let { db ->
+            repoScope.launch {
+                db.debtDao().updateBalanceAndPayments(
+                    businessId = bizId,
+                    id = debtId,
+                    balance = newBalance,
+                    paymentsJson = com.example.data.local.converters.RoomMappers.serializeDebtPayments(updatedDebt.payments)
+                )
+                val c = _clients.value.find { it.id == debt.clientId }
+                if (c != null) {
+                    db.clientDao().updateDebt(bizId, c.id, c.totalDebt)
+                }
+                db.syncQueueDao().enqueue(
+                    SyncQueueEntity(
+                        businessId = bizId,
+                        entityType = "DEBT",
+                        entityId = debtId,
+                        operation = "UPSERT",
+                        payloadJson = ""
+                    )
+                )
+                if (_isOnline.value) {
+                    syncManager?.drainQueue(bizId)
+                }
+            }
+        }
+
         addSystemNotification(
             title = "Pagamento de Fiado Recebido",
             message = "Recebido ${amount} MT de ${debt.clientName} via ${paymentMethod.displayName}.",
@@ -1058,7 +1374,26 @@ object NexoraRepository {
             notes = notes.trim(),
             createdAt = System.currentTimeMillis()
         )
-        _clients.value = listOf(newClient) + _clients.value
+        _clients.value = listOf(newClient) + _clients.value.filter { it.id != newClient.id }
+
+        val bizId = currentBusinessId()
+        database?.let { db ->
+            repoScope.launch {
+                db.clientDao().insertOrUpdate(newClient.toEntity(bizId))
+                db.syncQueueDao().enqueue(
+                    SyncQueueEntity(
+                        businessId = bizId,
+                        entityType = "CLIENT",
+                        entityId = newClient.id,
+                        operation = "UPSERT",
+                        payloadJson = ""
+                    )
+                )
+                if (_isOnline.value) {
+                    syncManager?.drainQueue(bizId)
+                }
+            }
+        }
         return newClient
     }
 
@@ -1066,10 +1401,48 @@ object NexoraRepository {
         _clients.value = _clients.value.map {
             if (it.id == client.id) client else it
         }
+
+        val bizId = currentBusinessId()
+        database?.let { db ->
+            repoScope.launch {
+                db.clientDao().insertOrUpdate(client.toEntity(bizId))
+                db.syncQueueDao().enqueue(
+                    SyncQueueEntity(
+                        businessId = bizId,
+                        entityType = "CLIENT",
+                        entityId = client.id,
+                        operation = "UPSERT",
+                        payloadJson = ""
+                    )
+                )
+                if (_isOnline.value) {
+                    syncManager?.drainQueue(bizId)
+                }
+            }
+        }
     }
 
     fun deleteClient(clientId: String) {
         _clients.value = _clients.value.filter { it.id != clientId }
+
+        val bizId = currentBusinessId()
+        database?.let { db ->
+            repoScope.launch {
+                db.clientDao().deleteClient(bizId, clientId)
+                db.syncQueueDao().enqueue(
+                    SyncQueueEntity(
+                        businessId = bizId,
+                        entityType = "CLIENT",
+                        entityId = clientId,
+                        operation = "DELETE",
+                        payloadJson = ""
+                    )
+                )
+                if (_isOnline.value) {
+                    syncManager?.drainQueue(bizId)
+                }
+            }
+        }
     }
 
     // EXPENSES METHODS (Module 8)
@@ -1091,16 +1464,51 @@ object NexoraRepository {
             notes = notes.trim(),
             recordedBy = _currentUser.value.name
         )
-        _expenses.value = listOf(expense) + _expenses.value
+        _expenses.value = listOf(expense) + _expenses.value.filter { it.id != expense.id }
 
-        if (!_isOnline.value) {
-            _pendingSyncOperations.value += 1
+        val bizId = currentBusinessId()
+        database?.let { db ->
+            repoScope.launch {
+                db.expenseDao().insert(expense.toEntity(bizId))
+                db.syncQueueDao().enqueue(
+                    SyncQueueEntity(
+                        businessId = bizId,
+                        entityType = "EXPENSE",
+                        entityId = expense.id,
+                        operation = "UPSERT",
+                        payloadJson = ""
+                    )
+                )
+                if (_isOnline.value) {
+                    syncManager?.drainQueue(bizId)
+                }
+            }
         }
+
         return expense
     }
 
     fun deleteExpense(id: String) {
         _expenses.value = _expenses.value.filter { it.id != id }
+
+        val bizId = currentBusinessId()
+        database?.let { db ->
+            repoScope.launch {
+                db.expenseDao().delete(bizId, id)
+                db.syncQueueDao().enqueue(
+                    SyncQueueEntity(
+                        businessId = bizId,
+                        entityType = "EXPENSE",
+                        entityId = id,
+                        operation = "DELETE",
+                        payloadJson = ""
+                    )
+                )
+                if (_isOnline.value) {
+                    syncManager?.drainQueue(bizId)
+                }
+            }
+        }
     }
 
     // SUPPLIER METHODS (Module 9)
@@ -1115,7 +1523,26 @@ object NexoraRepository {
             notes = notes.trim(),
             createdAt = System.currentTimeMillis()
         )
-        _suppliers.value = listOf(supplier) + _suppliers.value
+        _suppliers.value = listOf(supplier) + _suppliers.value.filter { it.id != supplier.id }
+
+        val bizId = currentBusinessId()
+        database?.let { db ->
+            repoScope.launch {
+                db.supplierDao().insertOrUpdate(supplier.toEntity(bizId))
+                db.syncQueueDao().enqueue(
+                    SyncQueueEntity(
+                        businessId = bizId,
+                        entityType = "SUPPLIER",
+                        entityId = supplier.id,
+                        operation = "UPSERT",
+                        payloadJson = ""
+                    )
+                )
+                if (_isOnline.value) {
+                    syncManager?.drainQueue(bizId)
+                }
+            }
+        }
         return supplier
     }
 
@@ -1145,6 +1572,25 @@ object NexoraRepository {
         )
         _supplierPurchases.value = listOf(purchase) + _supplierPurchases.value
 
+        val bizId = currentBusinessId()
+        database?.let { db ->
+            repoScope.launch {
+                db.supplierDao().insertPurchase(purchase.toEntity(bizId))
+                db.syncQueueDao().enqueue(
+                    SyncQueueEntity(
+                        businessId = bizId,
+                        entityType = "PURCHASE",
+                        entityId = purchase.id,
+                        operation = "UPSERT",
+                        payloadJson = ""
+                    )
+                )
+                if (_isOnline.value) {
+                    syncManager?.drainQueue(bizId)
+                }
+            }
+        }
+
         // Increase stock automatically!
         items.forEach { item ->
             val p = _products.value.find { it.id == item.productId }
@@ -1166,13 +1612,27 @@ object NexoraRepository {
                     timestamp = System.currentTimeMillis()
                 )
                 _movements.value = listOf(mov) + _movements.value
+                database?.let { db ->
+                    repoScope.launch {
+                        db.stockMovementDao().insert(mov.toEntity(bizId))
+                    }
+                }
             }
         }
 
         // If debt remained, increase supplier total debt
         if (debt > 0.0) {
+            val newTotalDebt = supplier.totalDebt + debt
             _suppliers.value = _suppliers.value.map { s ->
-                if (s.id == supplier.id) s.copy(totalDebt = s.totalDebt + debt) else s
+                if (s.id == supplier.id) s.copy(totalDebt = newTotalDebt) else s
+            }
+            database?.let { db ->
+                repoScope.launch {
+                    val sEntity = db.supplierDao().getSuppliers(bizId).find { it.id == supplier.id }
+                    if (sEntity != null) {
+                        db.supplierDao().insertOrUpdate(sEntity.copy(totalDebt = newTotalDebt, updatedAt = System.currentTimeMillis()))
+                    }
+                }
             }
             addSystemNotification(
                 title = "Nova Conta a Pagar",
@@ -1189,6 +1649,16 @@ object NexoraRepository {
         val newDebt = (s.totalDebt - amount).coerceAtLeast(0.0)
         _suppliers.value = _suppliers.value.map {
             if (it.id == supplierId) it.copy(totalDebt = newDebt) else it
+        }
+
+        val bizId = currentBusinessId()
+        database?.let { db ->
+            repoScope.launch {
+                val sEntity = db.supplierDao().getSuppliers(bizId).find { it.id == supplierId }
+                if (sEntity != null) {
+                    db.supplierDao().insertOrUpdate(sEntity.copy(totalDebt = newDebt, updatedAt = System.currentTimeMillis()))
+                }
+            }
         }
 
         // Also add as an operational expense so it reflects on finances
@@ -1213,11 +1683,24 @@ object NexoraRepository {
             isRead = false
         )
         _notifications.value = listOf(notif) + _notifications.value
+
+        val bizId = currentBusinessId()
+        database?.let { db ->
+            repoScope.launch {
+                db.notificationDao().insert(notif.toEntity(bizId))
+            }
+        }
     }
 
     fun markNotificationAsRead(id: String) {
         _notifications.value = _notifications.value.map {
             if (it.id == id) it.copy(isRead = true) else it
+        }
+        val bizId = currentBusinessId()
+        database?.let { db ->
+            repoScope.launch {
+                db.notificationDao().markAsRead(bizId, id)
+            }
         }
     }
 
@@ -1751,6 +2234,9 @@ object NexoraRepository {
     }
 
     fun logout() {
+        syncManager?.stopCloudListeners()
+        activeBusinessJobs.forEach { it.cancel() }
+        activeBusinessJobs.clear()
         authService.signOut()
         _isLoggedIn.value = false
         _authScreenMode.value = com.example.data.model.AuthScreenMode.LANDING
@@ -1763,6 +2249,8 @@ object NexoraRepository {
         _movements.value = emptyList()
         _expenses.value = emptyList()
         _suppliers.value = emptyList()
+        _notifications.value = emptyList()
+        _pendingSyncOperations.value = 0
         addAuditLog(
             action = AuditAction.CHANGE_PERMISSIONS,
             targetItem = "Sessão de Utilizador",
@@ -1834,6 +2322,9 @@ object NexoraRepository {
             _allUsers.value = listOf(newOwner)
             _isLoggedIn.value = true
             _authScreenMode.value = com.example.data.model.AuthScreenMode.MAIN_APP
+
+            // Connect Room and Cloud observers for this new business tenant
+            bindBusinessData(businessId)
 
             // Save Legal Consent
             saveUserConsent(
@@ -1928,6 +2419,7 @@ object NexoraRepository {
                 _lockoutTimeRemainingSeconds.value = 0
                 _isLoggedIn.value = true
                 _authScreenMode.value = com.example.data.model.AuthScreenMode.MAIN_APP
+                bindBusinessData(currUser.businessId.ifBlank { currUser.id })
                 addAuditLog(
                     action = AuditAction.DATA_ACCESS,
                     targetItem = "Autenticação PIN",
@@ -1968,6 +2460,9 @@ object NexoraRepository {
                 _allUsers.value = listOf(user)
                 _isLoggedIn.value = true
                 _authScreenMode.value = com.example.data.model.AuthScreenMode.MAIN_APP
+
+                // Automatically restore/bind all business data from Room & Cloud
+                bindBusinessData(user.businessId)
 
                 addAuditLog(
                     action = AuditAction.DATA_ACCESS,
@@ -2025,6 +2520,9 @@ object NexoraRepository {
         _isLoggedIn.value = true
         _authScreenMode.value = com.example.data.model.AuthScreenMode.MAIN_APP
 
+        // Bind multi-tenant data for newly created owner
+        bindBusinessData(newOwner.businessId)
+
         // Provision 14-day free trial subscription
         _subscription.value = BusinessSubscription(
             currentPlan = PlanTier.GRATUITO,
@@ -2069,6 +2567,7 @@ object NexoraRepository {
                     _isLoggedIn.value = true
                     _authScreenMode.value = com.example.data.model.AuthScreenMode.MAIN_APP
                     _loginFailedAttempts.value = 0
+                    bindBusinessData(user.businessId.ifBlank { user.id })
                     Result.success(user)
                 } else {
                     _loginFailedAttempts.value += 1
@@ -2082,6 +2581,7 @@ object NexoraRepository {
                     _isLoggedIn.value = true
                     _authScreenMode.value = com.example.data.model.AuthScreenMode.MAIN_APP
                     _loginFailedAttempts.value = 0
+                    bindBusinessData(user.businessId.ifBlank { user.id })
                     Result.success(user)
                 } else {
                     _loginFailedAttempts.value += 1
@@ -2093,6 +2593,7 @@ object NexoraRepository {
                 _isLoggedIn.value = true
                 _authScreenMode.value = com.example.data.model.AuthScreenMode.MAIN_APP
                 _loginFailedAttempts.value = 0
+                bindBusinessData(user.businessId.ifBlank { user.id })
                 Result.success(user)
             }
         }
@@ -2112,6 +2613,7 @@ object NexoraRepository {
             _isLoggedIn.value = true
             _authScreenMode.value = com.example.data.model.AuthScreenMode.MAIN_APP
             _loginFailedAttempts.value = 0
+            bindBusinessData(user.businessId.ifBlank { user.id })
             addAuditLog(
                 action = AuditAction.DATA_ACCESS,
                 targetItem = "Autenticação",
@@ -2136,6 +2638,7 @@ object NexoraRepository {
         _currentUser.value = user
         _isLoggedIn.value = true
         _authScreenMode.value = com.example.data.model.AuthScreenMode.MAIN_APP
+        bindBusinessData(user.businessId.ifBlank { user.id })
         return Result.success(user)
     }
 
@@ -2153,6 +2656,7 @@ object NexoraRepository {
             _allUsers.value = _allUsers.value.map { if (it.id == user.id) updatedUser else it }
             _isLoggedIn.value = true
             _authScreenMode.value = com.example.data.model.AuthScreenMode.MAIN_APP
+            bindBusinessData(updatedUser.businessId.ifBlank { updatedUser.id })
             addAuditLog(
                 action = AuditAction.DATA_ACCESS,
                 targetItem = "Recuperação de Acesso",

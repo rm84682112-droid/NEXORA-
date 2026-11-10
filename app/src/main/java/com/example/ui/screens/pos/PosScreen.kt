@@ -316,101 +316,99 @@ fun PosScreen(
                         .fillMaxWidth()
                 ) {
                     items(filteredProducts, key = { it.id }) { product ->
-                    val inCart = cartItems.find { it.product.id == product.id }
-                    val currentInCartQty = inCart?.quantity ?: 0
-                    val isAvailable = product.currentStock > currentInCartQty
+                        val inCart = cartItems.find { it.product.id == product.id }
+                        val currentInCartQty = inCart?.quantity ?: 0
+                        val isAvailable = product.currentStock > currentInCartQty
 
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(enabled = isAvailable) {
-                                if (inCart != null) {
-                                    val index = cartItems.indexOf(inCart)
-                                    cartItems[index] = inCart.copy(quantity = inCart.quantity + 1)
-                                } else {
-                                    cartItems.add(CartItem(product, 1))
-                                }
-                            }
-                            .testTag("pos_product_${product.id}"),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (currentInCartQty > 0) NexoraBluePrimary.copy(alpha = 0.15f) else NavySurfaceVariant
-                        ),
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            if (currentInCartQty > 0) NexoraBlueLight else NavyCardBorder
-                        )
-                    ) {
-                        Column(
+                        Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(12.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.Top
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .background(NavyCardElevated, RoundedCornerShape(10.dp)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(text = product.iconEmoji, fontSize = 20.sp)
-                                }
-
-                                if (currentInCartQty > 0) {
-                                    Box(
-                                        modifier = Modifier
-                                            .background(NexoraBluePrimary, CircleShape)
-                                            .padding(horizontal = 7.dp, vertical = 2.dp)
-                                    ) {
-                                        Text(
-                                            text = "${currentInCartQty}x",
-                                            color = Color.White,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 11.sp
-                                        )
+                                .clickable(enabled = isAvailable) {
+                                    if (inCart != null) {
+                                        val index = cartItems.indexOf(inCart)
+                                        cartItems[index] = inCart.copy(quantity = inCart.quantity + 1)
+                                    } else {
+                                        cartItems.add(CartItem(product, 1))
                                     }
                                 }
+                                .testTag("pos_product_${product.id}"),
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (currentInCartQty > 0) NavyCardElevated else NavySurfaceVariant,
+                            border = androidx.compose.foundation.BorderStroke(
+                                if (currentInCartQty > 0) 1.5.dp else 1.dp,
+                                if (currentInCartQty > 0) NexoraBlueLight else NavyCardBorder
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(38.dp)
+                                            .background(NavySurface, RoundedCornerShape(8.dp)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(text = product.iconEmoji, fontSize = 20.sp)
+                                    }
+
+                                    if (currentInCartQty > 0) {
+                                        Surface(
+                                            color = NexoraBluePrimary,
+                                            shape = CircleShape
+                                        ) {
+                                            Text(
+                                                text = "${currentInCartQty}x",
+                                                color = Color.White,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 11.sp,
+                                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Text(
+                                    text = product.name,
+                                    color = TextWhite,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.sp,
+                                    maxLines = 2,
+                                    lineHeight = 16.sp
+                                )
+
+                                Spacer(modifier = Modifier.height(4.dp))
+
+                                Text(
+                                    text = Formatters.formatMoney(product.sellingPrice),
+                                    color = NexoraCyanAccent,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                val remaining = product.currentStock - currentInCartQty
+                                val stockColor = if (remaining <= 0) NexoraRedAlert else if (remaining <= product.minStock) NexoraAmberWarning else TextMuted
+                                Text(
+                                    text = if (remaining <= 0) "Esgotado" else "$remaining un disp.",
+                                    color = stockColor,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
                             }
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            Text(
-                                text = product.name,
-                                color = TextWhite,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
-                                maxLines = 2,
-                                lineHeight = 16.sp
-                            )
-
-                            Spacer(modifier = Modifier.height(4.dp))
-
-                            Text(
-                                text = Formatters.formatMoney(product.sellingPrice),
-                                color = NexoraCyanAccent,
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 14.sp
-                            )
-
-                            Spacer(modifier = Modifier.height(6.dp))
-
-                            // Stock status
-                            val remaining = product.currentStock - currentInCartQty
-                            Text(
-                                text = if (remaining <= 0) "Esgotado" else "$remaining un em stock",
-                                color = if (remaining <= 0) NexoraRedAlert else if (remaining <= product.minStock) NexoraAmberWarning else TextMuted,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Medium
-                            )
                         }
                     }
                 }
             }
-        }
 
             // Bottom Sticky Checkout Bar
             if (cartCount > 0) {
@@ -418,7 +416,7 @@ fun PosScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 10.dp),
-                    shape = RoundedCornerShape(20.dp),
+                    shape = RoundedCornerShape(14.dp),
                     color = NavySurfaceVariant,
                     border = androidx.compose.foundation.BorderStroke(1.dp, NexoraBlueLight.copy(alpha = 0.5f))
                 ) {
@@ -431,14 +429,15 @@ fun PosScreen(
                     ) {
                         Column {
                             Text(
-                                text = "$cartCount artigos no carrinho",
+                                text = "$cartCount artigos",
                                 color = TextMuted,
-                                fontSize = 11.sp
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium
                             )
                             Text(
                                 text = Formatters.formatMoney(cartTotal),
                                 color = TextWhite,
-                                fontWeight = FontWeight.ExtraBold,
+                                fontWeight = FontWeight.Bold,
                                 fontSize = 18.sp
                             )
                         }
@@ -446,10 +445,10 @@ fun PosScreen(
                         Button(
                             onClick = { showCheckoutSheet = true },
                             colors = ButtonDefaults.buttonColors(containerColor = NexoraBluePrimary),
-                            shape = RoundedCornerShape(14.dp),
+                            shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.testTag("pos_checkout_button")
                         ) {
-                            Text("Cobrar / Finalizar", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text("Cobrar", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         }
                     }
                 }
@@ -811,15 +810,60 @@ private fun CheckoutSheetContent(
         // Contextual payment fields based on method
         when (selectedPaymentMethod) {
             PaymentMethod.DINHEIRO -> {
-                Card(
+                Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = CardDefaults.cardColors(containerColor = NavySurfaceVariant),
+                    shape = RoundedCornerShape(12.dp),
+                    color = NavySurfaceVariant,
                     border = androidx.compose.foundation.BorderStroke(1.dp, NavyCardBorder)
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Text("Cálculo de Troco em Dinheiro", color = CashGreen, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         Spacer(modifier = Modifier.height(8.dp))
+
+                        // Quick cash shortcut pills
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            item {
+                                Surface(
+                                    modifier = Modifier.clickable { cashPaidStr = totalToPay.toString() },
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (cashPaid == totalToPay) CashGreen.copy(alpha = 0.2f) else NavySurface,
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, if (cashPaid == totalToPay) CashGreen else NavyCardBorder)
+                                ) {
+                                    Text(
+                                        text = "Exato",
+                                        color = if (cashPaid == totalToPay) CashGreen else TextLight,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                    )
+                                }
+                            }
+                            val bills = listOf(100.0, 200.0, 500.0, 1000.0, 2000.0)
+                            items(bills) { bill ->
+                                if (bill >= totalToPay) {
+                                    Surface(
+                                        modifier = Modifier.clickable { cashPaidStr = bill.toInt().toString() },
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (cashPaid == bill) CashGreen.copy(alpha = 0.2f) else NavySurface,
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, if (cashPaid == bill) CashGreen else NavyCardBorder)
+                                    ) {
+                                        Text(
+                                            text = "${bill.toInt()} MT",
+                                            color = if (cashPaid == bill) CashGreen else TextLight,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 11.sp,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
                         OutlinedTextField(
                             value = cashPaidStr,
                             onValueChange = { cashPaidStr = it },
@@ -827,7 +871,7 @@ private fun CheckoutSheetContent(
                             placeholder = { Text(Formatters.formatMoney(totalToPay)) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(10.dp),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedContainerColor = NavyBackground,
                                 unfocusedContainerColor = NavyBackground,
@@ -838,7 +882,7 @@ private fun CheckoutSheetContent(
                             )
                         )
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -848,7 +892,7 @@ private fun CheckoutSheetContent(
                             Text(
                                 text = Formatters.formatMoney(change),
                                 color = CashGreen,
-                                fontWeight = FontWeight.ExtraBold,
+                                fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp
                             )
                         }

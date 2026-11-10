@@ -35,6 +35,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.SuggestionChipDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -188,7 +189,7 @@ fun AiAssistantScreen(
                         )
                     }
                     Text(
-                        text = "Inteligência Artificial Comercial (${aiStatusState.modelName})",
+                        text = "Consultoria de Vendas e Margens (${aiStatusState.modelName})",
                         color = NexoraCyanAccent,
                         fontSize = 12.sp
                     )
@@ -439,7 +440,7 @@ fun AiAssistantScreen(
         latestSummary?.let { summary ->
             item {
                 Text(
-                    text = "Diagnóstico do Teu Negócio",
+                    text = "Diagnóstico do Negócio",
                     color = TextWhite,
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Bold
@@ -448,15 +449,14 @@ fun AiAssistantScreen(
 
             // Executive Summary Card
             item {
-                Card(
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = NavySurface),
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = NavySurface,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, NavyCardBorder),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(text = "✨", fontSize = 18.sp)
-                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = summary.title,
                                 color = NexoraCyanAccent,
@@ -474,8 +474,8 @@ fun AiAssistantScreen(
                         Text(
                             text = summary.summaryText,
                             color = TextLight,
-                            fontSize = 14.sp,
-                            lineHeight = 21.sp
+                            fontSize = 13.sp,
+                            lineHeight = 20.sp
                         )
                     }
                 }
@@ -487,54 +487,48 @@ fun AiAssistantScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Card(
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = NavyCardElevated),
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = NavyCardElevated,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, NavyCardBorder),
                         modifier = Modifier.weight(1f)
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("🏆", fontSize = 16.sp)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    "Mais Vendidos",
-                                    color = NexoraGreenSuccess,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                "Mais Vendidos",
+                                color = NexoraGreenSuccess,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
                             Text(
                                 text = summary.bestSellingInsights,
                                 color = TextLight,
                                 fontSize = 12.sp,
-                                lineHeight = 17.sp
+                                lineHeight = 16.sp
                             )
                         }
                     }
 
-                    Card(
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = NavyCardElevated),
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = NavyCardElevated,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, NavyCardBorder),
                         modifier = Modifier.weight(1f)
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("💤", fontSize = 16.sp)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    "Pouca Rotação",
-                                    color = NexoraAmberWarning,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                "Baixa Rotação",
+                                color = NexoraAmberWarning,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
                             Text(
                                 text = summary.underperformingInsights,
                                 color = TextLight,
                                 fontSize = 12.sp,
-                                lineHeight = 17.sp
+                                lineHeight = 16.sp
                             )
                         }
                     }
@@ -543,22 +537,19 @@ fun AiAssistantScreen(
 
             // Restock Recommendations Card
             item {
-                Card(
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = NavySurfaceVariant),
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = NavySurfaceVariant,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, NavyCardBorder),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("📦", fontSize = 18.sp)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Recomendações de Compra & Stock",
-                                color = TextWhite,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
+                        Text(
+                            text = "Recomendações de Compra & Stock",
+                            color = TextWhite,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                         Spacer(modifier = Modifier.height(10.dp))
                         summary.restockRecommendations.forEach { rec ->
                             Row(
@@ -568,7 +559,7 @@ fun AiAssistantScreen(
                                 verticalAlignment = Alignment.Top
                             ) {
                                 Text(text = "• ", color = NexoraCyanAccent, fontWeight = FontWeight.Bold)
-                                Text(text = rec, color = TextLight, fontSize = 13.sp, lineHeight = 19.sp)
+                                Text(text = rec, color = TextLight, fontSize = 13.sp, lineHeight = 18.sp)
                             }
                         }
                     }
@@ -577,29 +568,32 @@ fun AiAssistantScreen(
 
             // Expenses & Forecast
             item {
-                Card(
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = NavyCardElevated),
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = NavyCardElevated,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, NavyCardBorder),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("🔮", fontSize = 18.sp)
-                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "Previsão & Tendência",
-                                color = NexoraPurple,
-                                fontSize = 15.sp,
+                                color = NexoraBlueLight,
+                                fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Spacer(modifier = Modifier.weight(1f))
                             if (!summary.hasEnoughDataForForecast) {
-                                Box(
-                                    modifier = Modifier
-                                        .background(NexoraAmberWarning.copy(alpha = 0.2f), RoundedCornerShape(6.dp))
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                Surface(
+                                    color = NexoraAmberWarning.copy(alpha = 0.15f),
+                                    shape = RoundedCornerShape(6.dp)
                                 ) {
-                                    Text("Histórico Curto", color = NexoraAmberWarning, fontSize = 10.sp)
+                                    Text(
+                                        text = "Histórico Curto",
+                                        color = NexoraAmberWarning,
+                                        fontSize = 10.sp,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
                                 }
                             }
                         }
@@ -608,7 +602,7 @@ fun AiAssistantScreen(
                             text = summary.salesForecast,
                             color = TextLight,
                             fontSize = 13.sp,
-                            lineHeight = 19.sp
+                            lineHeight = 18.sp
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(

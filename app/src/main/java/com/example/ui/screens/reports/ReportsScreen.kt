@@ -33,6 +33,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -215,51 +216,61 @@ fun ReportsScreen(
 
             // Net Result Hero Card
             item {
-                Card(
+                Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = NavySurfaceVariant),
+                    shape = RoundedCornerShape(14.dp),
+                    color = NavySurfaceVariant,
                     border = androidx.compose.foundation.BorderStroke(1.dp, NavyCardBorder)
                 ) {
                     Column(modifier = Modifier.padding(18.dp)) {
-                        Text("RESULTADO LÍQUIDO DO PERÍODO", color = TextMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "RESULTADO LÍQUIDO DO PERÍODO",
+                            color = TextMuted,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            letterSpacing = 0.5.sp
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
                         Text(
                             text = Formatters.formatMoney(netResult),
                             color = if (netResult >= 0) NexoraGreenSuccess else NexoraRedAlert,
                             fontSize = 28.sp,
-                            fontWeight = FontWeight.Black
+                            fontWeight = FontWeight.Bold
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("Lucro Comercial Bruto subtraído das despesas operacionais.", color = TextMuted, fontSize = 11.sp)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Lucro comercial bruto deduzido das despesas operacionais.",
+                            color = TextMuted,
+                            fontSize = 11.sp
+                        )
                     }
                 }
             }
 
             // DRE Breakdown Table Card
             item {
-                Card(
+                Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = NavySurfaceVariant),
+                    shape = RoundedCornerShape(14.dp),
+                    color = NavySurfaceVariant,
                     border = androidx.compose.foundation.BorderStroke(1.dp, NavyCardBorder)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text("Demonstração de Resultados (DRE)", color = TextWhite, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         Spacer(modifier = Modifier.height(10.dp))
                         HorizontalDivider(color = NavyCardBorder)
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
 
                         ReportLine(label = "(+) Faturação / Vendas Totais", value = Formatters.formatMoney(totalSales), color = TextWhite)
                         ReportLine(label = "(-) Custo das Mercadorias (CMV)", value = "- ${Formatters.formatMoney(totalCost)}", color = TextMuted)
                         Spacer(modifier = Modifier.height(4.dp))
                         ReportLine(label = "(=) Lucro Bruto das Vendas", value = Formatters.formatMoney(grossProfit), color = NexoraCyanAccent, isBold = true)
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
                         HorizontalDivider(color = NavyCardBorder)
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
 
-                        ReportLine(label = "(-) Despesas Operacionais Registadas", value = "- ${Formatters.formatMoney(totalExpenses)}", color = NexoraRedAlert)
+                        ReportLine(label = "(-) Despesas Operacionais", value = "- ${Formatters.formatMoney(totalExpenses)}", color = NexoraRedAlert)
                         Spacer(modifier = Modifier.height(4.dp))
                         ReportLine(label = "(=) Lucro Líquido Real", value = Formatters.formatMoney(netResult), color = if (netResult >= 0) NexoraGreenSuccess else NexoraRedAlert, isBold = true)
                     }

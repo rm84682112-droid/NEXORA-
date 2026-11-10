@@ -2,7 +2,6 @@ package com.example.ui.screens.dashboard
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,17 +24,14 @@ import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PointOfSale
-import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.TrendingUp
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.outlined.Inventory2
+import androidx.compose.material.icons.outlined.People
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -48,8 +43,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -57,12 +52,13 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.data.model.PaymentMethod
 import com.example.data.model.Product
 import com.example.data.model.Sale
 import com.example.data.model.User
+import com.example.ui.theme.HairlineDivider
 import com.example.ui.theme.NavyBackground
 import com.example.ui.theme.NavyCardBorder
 import com.example.ui.theme.NavyCardElevated
@@ -73,6 +69,7 @@ import com.example.ui.theme.NexoraBlueLight
 import com.example.ui.theme.NexoraBluePrimary
 import com.example.ui.theme.NexoraCyanAccent
 import com.example.ui.theme.NexoraGreenSuccess
+import com.example.ui.theme.NexoraPurple
 import com.example.ui.theme.NexoraRedAlert
 import com.example.ui.theme.TextFaint
 import com.example.ui.theme.TextLight
@@ -152,7 +149,6 @@ fun DashboardScreen(
         products.filter { it.isLowStock || it.isOutOfStock }
     }
 
-    // Top selling products calculated from sales
     val topSellingItems = remember(sales) {
         val counts = mutableMapOf<String, Pair<Product, Int>>()
         sales.flatMap { it.items }.forEach { item ->
@@ -160,7 +156,7 @@ fun DashboardScreen(
             val qty = (existing?.second ?: 0) + item.quantity
             counts[item.product.id] = Pair(item.product, qty)
         }
-        counts.values.sortedByDescending { it.second }.take(5)
+        counts.values.sortedByDescending { it.second }.take(4)
     }
 
     LazyColumn(
@@ -168,12 +164,12 @@ fun DashboardScreen(
             .fillMaxSize()
             .background(NavyBackground)
             .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
-            // Greeting & Period Selector
+            // Executive Header with Quick Actions
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -181,33 +177,35 @@ fun DashboardScreen(
             ) {
                 Column {
                     Text(
-                        text = "Resumo Comercial",
+                        text = "Painel Comercial",
                         color = TextWhite,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
+                        fontSize = 19.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = (-0.3).sp
                     )
                     Text(
-                        text = "Mercado Nacional • Moeda: Meticais (MT)",
+                        text = "Valores expressos em Meticais (MT)",
                         color = TextMuted,
                         fontSize = 12.sp
                     )
                 }
 
-                // Quick POS Floating pill
+                // POS Quick Action Pill
                 Button(
                     onClick = onNavigateToPos,
                     colors = ButtonDefaults.buttonColors(containerColor = NexoraBluePrimary),
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 8.dp),
                     modifier = Modifier.testTag("dashboard_quick_pos_btn")
                 ) {
                     Icon(imageVector = Icons.Default.PointOfSale, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Vender", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("Balcão POS", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                 }
             }
         }
 
-        // Onboarding "Primeiros Passos" Card for Owner
+        // Onboarding Card (if applicable)
         if (com.example.config.OnboardingConfig.ONBOARDING_CHECKLIST && currentUser.role == com.example.data.model.UserRole.DONO) {
             item {
                 com.example.ui.components.FirstStepsCard(
@@ -224,162 +222,81 @@ fun DashboardScreen(
             }
         }
 
-        // Period filter chips
+        // Segmented Period Filter
         item {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(NavySurface, RoundedCornerShape(10.dp))
+                    .padding(3.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 TimePeriod.values().forEach { period ->
                     val isSelected = period == selectedPeriod
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { selectedPeriod = period },
-                        label = { Text(period.label, fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = NexoraBluePrimary,
-                            selectedLabelColor = Color.White,
-                            containerColor = NavyCardElevated,
-                            labelColor = TextMuted
-                        ),
-                        border = FilterChipDefaults.filterChipBorder(
-                            enabled = true,
-                            selected = isSelected,
-                            borderColor = NavyCardBorder,
-                            selectedBorderColor = NexoraBlueLight
-                        ),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                }
-            }
-        }
-
-        // Smart AI Business Summary Card (Module 11)
-        val aiSummary = latestAiSummary
-        if (currentUser.canViewProfits) {
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onNavigateToAi() }
-                        .testTag("dashboard_smart_summary_card"),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = NavySurface),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, com.example.ui.theme.NexoraPurple.copy(alpha = 0.4f))
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("✨", fontSize = 18.sp)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Resumo Inteligente Nexora",
-                                    color = com.example.ui.theme.NexoraCyanAccent,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .background(com.example.ui.theme.NexoraPurple.copy(alpha = 0.2f), RoundedCornerShape(6.dp))
-                                    .padding(horizontal = 8.dp, vertical = 3.dp)
-                            ) {
-                                Text("Gemini AI", color = com.example.ui.theme.NexoraPurple, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSelected) NexoraBluePrimary else Color.Transparent)
+                            .clickable { selectedPeriod = period }
+                            .padding(vertical = 7.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
                         Text(
-                            text = if (aiSummary != null) aiSummary.summaryText else "Ainda não há dados suficientes. Registe as suas vendas e produtos e a IA começa a analisar o seu negócio.",
-                            color = if (aiSummary != null) TextLight else TextMuted,
-                            fontSize = 13.sp,
-                            maxLines = 3,
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                            lineHeight = 18.sp
+                            text = period.label,
+                            fontSize = 12.sp,
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                            color = if (isSelected) Color.White else TextMuted
                         )
-
-                        if (aiSummary?.restockRecommendations?.isNotEmpty() == true) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("📦 ", fontSize = 12.sp)
-                                Text(
-                                    text = aiSummary.restockRecommendations.first(),
-                                    color = TextMuted,
-                                    fontSize = 11.sp,
-                                    maxLines = 1,
-                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Abrir Assistente Completo →",
-                                color = com.example.ui.theme.NexoraCyanAccent,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
                     }
                 }
             }
         }
 
-        // Low stock warning banner if any
+        // Low stock warning strip (compact and purposeful)
         if (lowStockProducts.isNotEmpty()) {
             item {
-                Card(
+                Surface(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
                         .clickable { onNavigateToStock() }
                         .testTag("dashboard_low_stock_banner"),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = NexoraAmberWarning.copy(alpha = 0.15f)),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, NexoraAmberWarning.copy(alpha = 0.5f))
+                    color = NexoraAmberWarning.copy(alpha = 0.08f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, NexoraAmberWarning.copy(alpha = 0.35f)),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(14.dp),
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.weight(1f)
-                        ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                             Box(
                                 modifier = Modifier
-                                    .size(36.dp)
-                                    .background(NexoraAmberWarning.copy(alpha = 0.2f), CircleShape),
+                                    .size(28.dp)
+                                    .background(NexoraAmberWarning.copy(alpha = 0.15f), CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Warning,
-                                    contentDescription = "Alerta",
+                                    contentDescription = null,
                                     tint = NexoraAmberWarning,
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(16.dp)
                                 )
                             }
-                            Spacer(modifier = Modifier.width(12.dp))
+                            Spacer(modifier = Modifier.width(10.dp))
                             Column {
                                 Text(
-                                    text = "${lowStockProducts.size} Artigos com Stock Crítico!",
+                                    text = "${lowStockProducts.size} artigos com stock no limite",
                                     color = TextWhite,
-                                    fontWeight = FontWeight.Bold,
+                                    fontWeight = FontWeight.SemiBold,
                                     fontSize = 13.sp
                                 )
                                 Text(
-                                    text = "Toque para ver e repor mercadoria",
+                                    text = "Toque para ver a lista de reposição",
                                     color = NexoraAmberWarning,
                                     fontSize = 11.sp
                                 )
@@ -389,28 +306,29 @@ fun DashboardScreen(
                             imageVector = Icons.Default.ArrowForward,
                             contentDescription = "Ver",
                             tint = NexoraAmberWarning,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(16.dp)
                         )
                     }
                 }
             }
         }
 
-        // Main Stat Highlight: Total Vendas
+        // Unified Executive Financial Cockpit
         item {
-            Card(
+            Surface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("stat_card_total_vendas"),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = NavySurfaceVariant),
-                border = androidx.compose.foundation.BorderStroke(1.dp, NavyCardBorder)
+                shape = RoundedCornerShape(14.dp),
+                color = NavySurface,
+                border = androidx.compose.foundation.BorderStroke(1.dp, HairlineDivider)
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(20.dp)
+                        .padding(16.dp)
                 ) {
+                    // Primary Figure: Total Revenue
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -418,39 +336,39 @@ fun DashboardScreen(
                     ) {
                         Column {
                             Text(
-                                text = "TOTAL DE VENDAS",
+                                text = "FATURAMENTO TOTAL",
                                 color = TextMuted,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.sp
+                                letterSpacing = 0.8.sp
                             )
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(3.dp))
                             Text(
                                 text = Formatters.formatMoney(totalSalesAmount),
                                 color = TextWhite,
                                 fontSize = 28.sp,
-                                fontWeight = FontWeight.Black
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = (-0.5).sp
                             )
                         }
 
                         if (salesPercentageChange != null) {
                             val isPos = salesPercentageChange >= 0.0
-                            Box(
-                                modifier = Modifier
-                                    .background(
-                                        if (isPos) NexoraGreenSuccess.copy(alpha = 0.15f) else NexoraRedAlert.copy(alpha = 0.15f),
-                                        RoundedCornerShape(10.dp)
-                                    )
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = if (isPos) NexoraGreenSuccess.copy(alpha = 0.12f) else NexoraRedAlert.copy(alpha = 0.12f)
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
                                     Icon(
                                         imageVector = if (isPos) Icons.Default.TrendingUp else Icons.Default.TrendingDown,
                                         contentDescription = null,
                                         tint = if (isPos) NexoraGreenSuccess else NexoraRedAlert,
-                                        modifier = Modifier.size(14.dp)
+                                        modifier = Modifier.size(13.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Spacer(modifier = Modifier.width(3.dp))
                                     Text(
                                         text = "${if (isPos) "+" else ""}${String.format(java.util.Locale.US, "%.1f", salesPercentageChange)}%",
                                         color = if (isPos) NexoraGreenSuccess else NexoraRedAlert,
@@ -462,179 +380,88 @@ fun DashboardScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
+                    HorizontalDivider(color = HairlineDivider, thickness = 1.dp)
+                    Spacer(modifier = Modifier.height(14.dp))
 
+                    // Secondary Metric Indicators Row
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        StatSubItem(
+                        MetricCell(
                             label = "Transacções",
                             value = "$totalSalesCount vendas",
-                            color = NexoraCyanAccent
+                            highlight = false
                         )
-                        StatSubItem(
+                        MetricCell(
                             label = "Ticket Médio",
                             value = if (totalSalesCount > 0) Formatters.formatMoney(totalSalesAmount / totalSalesCount) else "0.00 MT",
-                            color = TextLight
+                            highlight = false
                         )
-                        StatSubItem(
-                            label = "Despesas Est.",
-                            value = Formatters.formatMoney(estimatedExpenses),
-                            color = TextMuted
-                        )
+                        if (currentUser.canViewProfits) {
+                            MetricCell(
+                                label = "Lucro Líquido",
+                                value = Formatters.formatMoney(netProfit),
+                                highlight = true,
+                                highlightColor = NexoraGreenSuccess
+                            )
+                        } else {
+                            MetricCell(
+                                label = "Lucro",
+                                value = "Confidencial",
+                                highlight = false,
+                                isProtected = true
+                            )
+                        }
                     }
                 }
             }
         }
 
-        // Lucro Bruto e Líquido (Gated by User Role: Only Dono can see!)
+        // Sales Evolution Line Chart
         item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("stat_card_lucro"),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = NavySurfaceVariant),
-                border = androidx.compose.foundation.BorderStroke(1.dp, NavyCardBorder)
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                color = NavySurface,
+                border = androidx.compose.foundation.BorderStroke(1.dp, HairlineDivider)
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(18.dp)
+                        .padding(16.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .background(NexoraCyanAccent.copy(alpha = 0.15f), RoundedCornerShape(8.dp)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.AttachMoney,
-                                    contentDescription = null,
-                                    tint = NexoraCyanAccent,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                text = "LUCRO ESTIMADO",
-                                color = TextMuted,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.8.sp
-                            )
-                        }
-
-                        if (!currentUser.canViewProfits) {
-                            Box(
-                                modifier = Modifier
-                                    .background(NavyCardElevated, RoundedCornerShape(8.dp))
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Lock, contentDescription = null, tint = TextMuted, modifier = Modifier.size(12.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Apenas Dono", color = TextMuted, fontSize = 10.sp)
-                                }
-                            }
-                        }
+                        Text(
+                            text = "EVOLUÇÃO RECENTE DE VENDAS",
+                            color = TextMuted,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.8.sp
+                        )
+                        Text(
+                            text = "7 Dias",
+                            color = TextFaint,
+                            fontSize = 11.sp
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
-
-                    if (currentUser.canViewProfits) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.Bottom
-                        ) {
-                            Column {
-                                Text(
-                                    text = Formatters.formatMoney(netProfit),
-                                    color = NexoraGreenSuccess,
-                                    fontSize = 24.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "Lucro Líquido pós-despesas estimadas",
-                                    color = TextMuted,
-                                    fontSize = 11.sp
-                                )
-                            }
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text(
-                                    text = Formatters.formatMoney(totalProfitAmount),
-                                    color = TextLight,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Text(
-                                    text = "Margem Bruta",
-                                    color = TextMuted,
-                                    fontSize = 11.sp
-                                )
-                            }
-                        }
-                    } else {
-                        // Caixa view: Confidential metrics hidden
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(NavyBackground, RoundedCornerShape(12.dp))
-                                .padding(14.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.VisibilityOff, contentDescription = null, tint = TextMuted, modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                text = "Métricas de lucro e custos são confidenciais do proprietário.",
-                                color = TextMuted,
-                                fontSize = 12.sp
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // Sales Trend Canvas Chart
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = NavySurfaceVariant),
-                border = androidx.compose.foundation.BorderStroke(1.dp, NavyCardBorder)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(18.dp)
-                ) {
-                    Text(
-                        text = "EVOLUÇÃO DAS VENDAS (MT)",
-                        color = TextMuted,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp
-                    )
-                    Spacer(modifier = Modifier.height(14.dp))
 
                     if (sales.isEmpty()) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(120.dp),
+                                .height(110.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "Ainda sem vendas. Faça a primeira venda para ver o gráfico.",
+                                text = "Registe as suas primeiras vendas para acompanhar o histórico gráfico.",
                                 color = TextMuted,
                                 fontSize = 12.sp,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -645,15 +472,15 @@ fun DashboardScreen(
                             sales = sales,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(140.dp)
+                                .height(120.dp)
                         )
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             listOf("Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Hoje").forEach { day ->
-                                Text(text = day, color = TextMuted, fontSize = 10.sp)
+                                Text(text = day, color = TextFaint, fontSize = 10.sp)
                             }
                         }
                     }
@@ -669,13 +496,13 @@ fun DashboardScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Mais Vendidos",
+                    text = "Artigos Mais Vendidos",
                     color = TextWhite,
-                    fontSize = 16.sp,
+                    fontSize = 15.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "Ver Todos",
+                    text = "Catálogo →",
                     color = NexoraCyanAccent,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -686,39 +513,94 @@ fun DashboardScreen(
 
         if (topSellingItems.isEmpty()) {
             item {
-                Card(
+                Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = CardDefaults.cardColors(containerColor = NavyCardElevated)
+                    shape = RoundedCornerShape(12.dp),
+                    color = NavySurface,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, HairlineDivider)
                 ) {
-                    Column(
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(20.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text("Ainda sem vendas registadas", color = TextWhite, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text("Registe a sua primeira venda no POS para acompanhar os produtos com maior saída.", color = TextMuted, fontSize = 12.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                        Text(
+                            text = "Ainda sem vendas no período seleccionado.",
+                            color = TextMuted,
+                            fontSize = 12.sp
+                        )
                     }
                 }
             }
         } else {
             items(topSellingItems) { (product, quantitySold) ->
-                ProductSalesRankCard(
-                    product = product,
-                    quantitySold = quantitySold,
-                    canViewProfits = currentUser.canViewProfits
-                )
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    color = NavySurface,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, HairlineDivider)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(NavySurfaceVariant, RoundedCornerShape(8.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(text = product.iconEmoji, fontSize = 18.sp)
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = product.name,
+                                    color = TextWhite,
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 13.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = "$quantitySold ${product.unitType.shortLabel} vendidas",
+                                    color = TextMuted,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                text = Formatters.formatMoney(product.sellingPrice * quantitySold),
+                                color = TextWhite,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 13.sp
+                            )
+                            if (currentUser.canViewProfits) {
+                                Text(
+                                    text = "Lucro: +${Formatters.formatMoney(product.profitPerUnit * quantitySold)}",
+                                    color = NexoraGreenSuccess,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
 
-        // Quick Action Grid at the bottom
+        // Fast Commercial Actions Grid
         item {
             Text(
                 text = "Operações Rápidas",
                 color = TextWhite,
-                fontSize = 16.sp,
+                fontSize = 15.sp,
                 fontWeight = FontWeight.Bold
             )
         }
@@ -728,33 +610,54 @@ fun DashboardScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                QuickActionCard(
-                    title = "Novo Artigo",
-                    subtitle = "Cadastrar produto",
+                QuickActionStripButton(
+                    title = "Cadastrar Produto",
+                    subtitle = "Novo artigo no catálogo",
                     icon = Icons.Default.Add,
-                    color = NexoraBlueLight,
                     onClick = onNavigateToProducts,
                     modifier = Modifier.weight(1f)
                 )
-                QuickActionCard(
-                    title = "Fiado & Cobrança",
-                    subtitle = "Gerir dívidas",
+                QuickActionStripButton(
+                    title = "Controle de Fiados",
+                    subtitle = "Cobrança de clientes",
                     icon = Icons.Default.AttachMoney,
-                    color = NexoraCyanAccent,
                     onClick = onNavigateToDebts,
                     modifier = Modifier.weight(1f)
                 )
             }
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(18.dp))
         }
     }
 }
 
 @Composable
-private fun StatSubItem(label: String, value: String, color: Color) {
+private fun MetricCell(
+    label: String,
+    value: String,
+    highlight: Boolean,
+    highlightColor: Color = NexoraBlueLight,
+    isProtected: Boolean = false
+) {
     Column {
-        Text(text = label, color = TextMuted, fontSize = 10.sp)
-        Text(text = value, color = color, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Text(text = label, color = TextMuted, fontSize = 11.sp)
+        Spacer(modifier = Modifier.height(2.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (isProtected) {
+                Icon(
+                    imageVector = Icons.Default.Lock,
+                    contentDescription = null,
+                    tint = TextFaint,
+                    modifier = Modifier.size(11.dp)
+                )
+                Spacer(modifier = Modifier.width(3.dp))
+            }
+            Text(
+                text = value,
+                color = if (highlight) highlightColor else (if (isProtected) TextFaint else TextWhite),
+                fontSize = 13.sp,
+                fontWeight = if (highlight) FontWeight.Bold else FontWeight.SemiBold
+            )
+        }
     }
 }
 
@@ -764,11 +667,10 @@ private fun SalesTrendChart(sales: List<Sale>, modifier: Modifier = Modifier) {
         val width = size.width
         val height = size.height
 
-        // Group sales by day (last 7 days)
         val now = System.currentTimeMillis()
         val oneDayMillis = 86400_000L
         val dailyTotals = mutableListOf<Double>()
-        
+
         for (i in 6 downTo 0) {
             val dayStart = now - (i * oneDayMillis)
             val dayEnd = dayStart + oneDayMillis
@@ -781,8 +683,8 @@ private fun SalesTrendChart(sales: List<Sale>, modifier: Modifier = Modifier) {
 
         val points = dailyTotals.mapIndexed { index, total ->
             val x = index * stepX
-            val ratio = (total / maxVal).toFloat().coerceIn(0.05f, 0.95f)
-            val y = height - (ratio * (height - 16f)) - 8f
+            val ratio = (total / maxVal).toFloat().coerceIn(0.08f, 0.92f)
+            val y = height - (ratio * (height - 20f)) - 10f
             Offset(x, y)
         }
 
@@ -791,7 +693,6 @@ private fun SalesTrendChart(sales: List<Sale>, modifier: Modifier = Modifier) {
             if (i == 0) path.moveTo(p.x, p.y) else path.lineTo(p.x, p.y)
         }
 
-        // Fill area under path
         val fillPath = Path().apply {
             addPath(path)
             lineTo(width, height)
@@ -802,119 +703,74 @@ private fun SalesTrendChart(sales: List<Sale>, modifier: Modifier = Modifier) {
         drawPath(
             path = fillPath,
             brush = Brush.verticalGradient(
-                listOf(NexoraBluePrimary.copy(alpha = 0.35f), Color.Transparent)
+                listOf(NexoraBluePrimary.copy(alpha = 0.25f), Color.Transparent)
             )
         )
 
-        // Draw line
         drawPath(
             path = path,
             color = NexoraBlueLight,
-            style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+            style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round)
         )
 
-        // Draw circles on points
-        points.forEach { p ->
-            drawCircle(color = NavyBackground, radius = 5.dp.toPx(), center = p)
-            drawCircle(color = NexoraCyanAccent, radius = 3.5.dp.toPx(), center = p)
+        // Clean point indicator for the latest day
+        points.lastOrNull()?.let { lastPoint ->
+            drawCircle(color = NavySurface, radius = 5.dp.toPx(), center = lastPoint)
+            drawCircle(color = NexoraBlueLight, radius = 3.dp.toPx(), center = lastPoint)
         }
     }
 }
 
 @Composable
-private fun ProductSalesRankCard(
-    product: Product,
-    quantitySold: Int,
-    canViewProfits: Boolean
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = NavySurfaceVariant),
-        border = androidx.compose.foundation.BorderStroke(1.dp, NavyCardBorder)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .background(NavyCardElevated, RoundedCornerShape(10.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(text = product.iconEmoji, fontSize = 20.sp)
-                }
-                Spacer(modifier = Modifier.width(12.dp))
-                Column {
-                    Text(
-                        text = product.name,
-                        color = TextWhite,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 13.sp,
-                        maxLines = 1
-                    )
-                    Text(
-                        text = "${Formatters.formatMoney(product.sellingPrice)} un • $quantitySold un vendidas",
-                        color = TextMuted,
-                        fontSize = 11.sp
-                    )
-                }
-            }
-
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = Formatters.formatMoney(product.sellingPrice * quantitySold),
-                    color = NexoraBlueLight,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp
-                )
-                if (canViewProfits) {
-                    Text(
-                        text = "Lucro: +${Formatters.formatMoney(product.profitPerUnit * quantitySold)}",
-                        color = NexoraGreenSuccess,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun QuickActionCard(
+private fun QuickActionStripButton(
     title: String,
     subtitle: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
-    color: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    Surface(
         modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
             .clickable { onClick() }
             .testTag("quick_action_${title.lowercase().replace(" ", "_")}"),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = NavySurfaceVariant),
-        border = androidx.compose.foundation.BorderStroke(1.dp, NavyCardBorder)
+        shape = RoundedCornerShape(12.dp),
+        color = NavySurface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, HairlineDivider)
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Box(
                 modifier = Modifier
-                    .size(36.dp)
-                    .background(color.copy(alpha = 0.15f), RoundedCornerShape(10.dp)),
+                    .size(34.dp)
+                    .background(NexoraBluePrimary.copy(alpha = 0.12f), RoundedCornerShape(8.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(imageVector = icon, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = NexoraBlueLight,
+                    modifier = Modifier.size(18.dp)
+                )
             }
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(text = title, color = TextWhite, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-            Text(text = subtitle, color = TextMuted, fontSize = 11.sp)
+            Spacer(modifier = Modifier.width(10.dp))
+            Column {
+                Text(
+                    text = title,
+                    color = TextWhite,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 12.5.sp,
+                    maxLines = 1
+                )
+                Text(
+                    text = subtitle,
+                    color = TextMuted,
+                    fontSize = 11.sp,
+                    maxLines = 1
+                )
+            }
         }
     }
 }
