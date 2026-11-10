@@ -105,15 +105,18 @@ class FirebaseAuthenticationService private constructor() {
         } catch (e: Exception) {
             Log.e("FirebaseAuthService", "Erro de autenticação no Firebase Auth: ${e.message}", e)
             val friendlyMsg = when {
+                e is com.google.firebase.auth.FirebaseAuthInvalidCredentialsException ||
+                e is com.google.firebase.auth.FirebaseAuthInvalidUserException ||
                 e.message?.contains("INVALID_LOGIN_CREDENTIALS", ignoreCase = true) == true ||
                 e.message?.contains("There is no user record", ignoreCase = true) == true ||
-                e.message?.contains("invalid-credential", ignoreCase = true) == true ->
-                    "Número de telemóvel ou palavra-passe incorrectos."
+                e.message?.contains("invalid-credential", ignoreCase = true) == true ||
+                e.message?.contains("incorrect, malformed or has expired", ignoreCase = true) == true ->
+                    "Número de telemóvel ou palavra-passe incorrectos. Verifique os dados introduzidos."
                 e.message?.contains("network error", ignoreCase = true) == true ->
                     "Sem conexão à Internet. Verifique a sua ligação móvel ou Wi-Fi."
                 e.message?.contains("too many requests", ignoreCase = true) == true ->
                     "Muitas tentativas falhadas. Aguarde alguns instantes antes de tentar novamente."
-                else -> e.localizedMessage ?: "Falha ao entrar no sistema."
+                else -> "Número de telemóvel ou palavra-passe incorretos."
             }
             Result.failure(Exception(friendlyMsg, e))
         }
