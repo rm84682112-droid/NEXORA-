@@ -52,10 +52,13 @@ import com.example.data.local.converters.RoomMappers.toDomain
 import com.example.data.local.converters.RoomMappers.toEntity
 import com.example.data.local.entities.SyncQueueEntity
 import com.example.data.sync.SyncManager
+import com.example.data.firebase.FirebaseService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -66,16 +69,21 @@ import java.util.UUID
 
 object NexoraRepository {
 
-    // Persistent Database & Cloud Sync Bridge
     private var database: NexoraDatabase? = null
     private var syncManager: SyncManager? = null
+    private var appContext: Context? = null
     private val repoScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val activeBusinessJobs = mutableListOf<Job>()
 
     fun initialize(context: Context, customDb: NexoraDatabase? = null) {
-        val db = customDb ?: NexoraDatabase.getInstance(context)
+        val appCtx = context.applicationContext
+        appContext = appCtx
+        val db = customDb ?: NexoraDatabase.getInstance(appCtx)
         database = db
-        syncManager = SyncManager(db)
+        val fs = try {
+            FirebaseService.getInstance(appCtx).firestore
+        } catch (e: Exception) { null }
+        syncManager = SyncManager(db, fs, appCtx)
         val bizId = currentBusinessId()
         if (bizId.isNotBlank() && _isLoggedIn.value) {
             bindBusinessData(bizId)
@@ -925,10 +933,43 @@ object NexoraRepository {
     private val _subscription = MutableStateFlow(BusinessSubscription())
     val subscription: StateFlow<BusinessSubscription> = _subscription.asStateFlow()
 
+    fun checkAndUpdateSubscription() {
+        val sub = _subscription.value
+        if (sub.status == SubscriptionStatus.EXPERIMENTAL && sub.isExpired) {
+            _subscription.value = sub.copy(
+                currentPlan = PlanTier.GRATUITO,
+                status = SubscriptionStatus.EXPIRADA
+            )
+        }
+    }
+
+    fun getCurrentMonthSalesCount(): Int {
+        val calCurrent = java.util.Calendar.getInstance()
+        val currentYear = calCurrent.get(java.util.Calendar.YEAR)
+        val currentMonth = calCurrent.get(java.util.Calendar.MONTH)
+        return _sales.value.count { sale ->
+            val calSale = java.util.Calendar.getInstance().apply { timeInMillis = sale.timestamp }
+            calSale.get(java.util.Calendar.YEAR) == currentYear && calSale.get(java.util.Calendar.MONTH) == currentMonth
+        }
+    }
+
+    fun updateSubscription(subscription: BusinessSubscription) {
+        _subscription.value = subscription
+    }
+
     // Methods
 
     fun switchUser(user: User) {
         _currentUser.value = user
+        _products.value = emptyList()
+        _sales.value = emptyList()
+        _clients.value = emptyList()
+        _debts.value = emptyList()
+        _movements.value = emptyList()
+        _expenses.value = emptyList()
+        _suppliers.value = emptyList()
+        _supplierPurchases.value = emptyList()
+        _notifications.value = emptyList()
         val bizId = user.businessId.ifBlank { user.id }
         bindBusinessData(bizId)
     }
@@ -951,10 +992,28 @@ object NexoraRepository {
         packagePrice: Double = 0.0,
         packageName: String = "Caixa"
     ): Product {
+        checkAndUpdateSubscription()
+        val plan = _subscription.value.currentPlan
+        val activeProductsCount = _products.value.count { it.isActive }
+        if (activeProductsCount >= plan.maxProducts) {
+            throw IllegalStateException("Limite do plano atingido: Máximo de ${plan.maxProducts} produtos activos no ${plan.title}. Faça upgrade para Starter ou Pro.")
+        }
+
         val calculatedStock = if (packageEnabled && unitsPerPackage > 1) {
             packagesCount * unitsPerPackage
         } else {
             packagesCount
+        }
+
+        val perUnitCostPrice = if (packageEnabled && unitsPerPackage > 1) {
+            if (packagePrice > 0.0) packagePrice / unitsPerPackage else costPrice / unitsPerPackage
+        } else {
+            costPrice
+        }
+        val realPackagePrice = if (packageEnabled) {
+            if (packagePrice > 0.0) packagePrice else (if (unitsPerPackage > 1) costPrice else 0.0)
+        } else {
+            0.0
         }
 
         val newProduct = Product(
@@ -964,7 +1023,7 @@ object NexoraRepository {
             description = description.trim(),
             unitType = unitType,
             unitsPerPackage = unitsPerPackage.coerceAtLeast(1),
-            costPrice = costPrice,
+            costPrice = perUnitCostPrice,
             sellingPrice = sellingPrice,
             currentStock = calculatedStock,
             minStock = minStock.coerceAtLeast(1),
@@ -973,7 +1032,7 @@ object NexoraRepository {
             isActive = isActive,
             supplierName = supplierName.trim(),
             packageEnabled = packageEnabled,
-            packagePrice = packagePrice,
+            packagePrice = realPackagePrice,
             packageName = packageName.trim()
         )
 
@@ -1021,6 +1080,15 @@ object NexoraRepository {
             database?.let { db ->
                 repoScope.launch {
                     db.stockMovementDao().insert(movement.toEntity(bizId))
+                    db.syncQueueDao().enqueue(
+                        SyncQueueEntity(
+                            businessId = bizId,
+                            entityType = "STOCK_MOVEMENT",
+                            entityId = movement.id,
+                            operation = "UPSERT",
+                            payloadJson = ""
+                        )
+                    )
                 }
             }
         }
@@ -1029,20 +1097,35 @@ object NexoraRepository {
     }
 
     fun updateProduct(product: Product) {
-        val oldProduct = _products.value.find { it.id == product.id }
+        val perUnitCostPrice = if (product.packageEnabled && product.unitsPerPackage > 1) {
+            if (product.packagePrice > 0.0) product.packagePrice / product.unitsPerPackage else product.costPrice / product.unitsPerPackage
+        } else {
+            product.costPrice
+        }
+        val realPackagePrice = if (product.packageEnabled) {
+            if (product.packagePrice > 0.0) product.packagePrice else (if (product.unitsPerPackage > 1) product.costPrice else 0.0)
+        } else {
+            0.0
+        }
+        val normalizedProduct = product.copy(
+            costPrice = perUnitCostPrice,
+            packagePrice = realPackagePrice
+        )
+
+        val oldProduct = _products.value.find { it.id == normalizedProduct.id }
         _products.value = _products.value.map {
-            if (it.id == product.id) product else it
+            if (it.id == normalizedProduct.id) normalizedProduct else it
         }
 
         val bizId = currentBusinessId()
         database?.let { db ->
             repoScope.launch {
-                db.productDao().insertOrUpdate(product.toEntity(bizId))
+                db.productDao().insertOrUpdate(normalizedProduct.toEntity(bizId))
                 db.syncQueueDao().enqueue(
                     SyncQueueEntity(
                         businessId = bizId,
                         entityType = "PRODUCT",
-                        entityId = product.id,
+                        entityId = normalizedProduct.id,
                         operation = "UPSERT",
                         payloadJson = ""
                     )
@@ -1153,6 +1236,13 @@ object NexoraRepository {
         dueDate: Long?,
         notes: String
     ): Sale {
+        checkAndUpdateSubscription()
+        val plan = _subscription.value.currentPlan
+        val monthlySales = getCurrentMonthSalesCount()
+        if (monthlySales >= plan.maxSalesPerMonth) {
+            throw IllegalStateException("Limite de vendas mensais atingido (${plan.maxSalesPerMonth} no ${plan.title}). Faça upgrade para continuar a vender este mês.")
+        }
+
         val subtotal = items.sumOf { it.subtotal }
         val finalTotal = (subtotal - discount).coerceAtLeast(0.0)
         val change = if (paymentMethod == PaymentMethod.DINHEIRO) {
@@ -1302,6 +1392,100 @@ object NexoraRepository {
         return sale
     }
 
+    fun cancelSale(saleId: String): Result<Boolean> {
+        val sale = _sales.value.find { it.id == saleId }
+            ?: return Result.failure(Exception("Venda não encontrada."))
+
+        val bizId = currentBusinessId()
+
+        // 1. Revert product stock
+        sale.items.forEach { item ->
+            val p = _products.value.find { it.id == item.product.id }
+            if (p != null) {
+                val restoredStock = p.currentStock + item.quantity
+                val updatedP = p.copy(currentStock = restoredStock)
+                updateProduct(updatedP)
+
+                val movement = StockMovement(
+                    id = "mov-${UUID.randomUUID().toString().take(8)}",
+                    productId = p.id,
+                    productName = p.name,
+                    type = MovementType.ENTRADA,
+                    quantity = item.quantity,
+                    previousStock = p.currentStock,
+                    newStock = restoredStock,
+                    reason = "Cancelamento da Venda #${sale.receiptNumber}",
+                    operatorName = _currentUser.value.name,
+                    timestamp = System.currentTimeMillis()
+                )
+                _movements.value = listOf(movement) + _movements.value
+                database?.let { db ->
+                    repoScope.launch {
+                        db.stockMovementDao().insert(movement.toEntity(bizId))
+                        db.syncQueueDao().enqueue(
+                            SyncQueueEntity(
+                                businessId = bizId,
+                                entityType = "STOCK_MOVEMENT",
+                                entityId = movement.id,
+                                operation = "UPSERT",
+                                payloadJson = ""
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        // 2. Revert client debt if Fiado
+        if (sale.paymentMethod == PaymentMethod.FIADO && !sale.customerId.isNullOrBlank()) {
+            val debt = _debts.value.find { it.saleId == sale.id || it.receiptNumber == sale.receiptNumber }
+            if (debt != null) {
+                _debts.value = _debts.value.filter { it.id != debt.id }
+                val client = _clients.value.find { it.id == sale.customerId }
+                if (client != null) {
+                    val newDebtBalance = (client.totalDebt - debt.remainingBalance).coerceAtLeast(0.0)
+                    _clients.value = _clients.value.map { c ->
+                        if (c.id == client.id) c.copy(totalDebt = newDebtBalance) else c
+                    }
+                    database?.let { db ->
+                        repoScope.launch {
+                            db.debtDao().deleteById(bizId, debt.id)
+                            db.clientDao().updateDebt(bizId, client.id, newDebtBalance)
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Remove sale locally and enqueue delete to Firestore
+        _sales.value = _sales.value.filter { it.id != saleId }
+        database?.let { db ->
+            repoScope.launch {
+                db.saleDao().deleteSaleById(bizId, saleId)
+                db.syncQueueDao().enqueue(
+                    SyncQueueEntity(
+                        businessId = bizId,
+                        entityType = "SALE",
+                        entityId = saleId,
+                        operation = "DELETE",
+                        payloadJson = ""
+                    )
+                )
+                if (_isOnline.value) {
+                    syncManager?.drainQueue(bizId)
+                }
+            }
+        }
+
+        addAuditLog(
+            action = AuditAction.CANCEL_SALE,
+            targetItem = "Venda #${sale.receiptNumber}",
+            details = "Venda no valor de ${sale.total} MT foi cancelada. Stock e fiado revertidos."
+        )
+
+        return Result.success(true)
+    }
+
     fun recordDebtPayment(debtId: String, amount: Double, paymentMethod: PaymentMethod, notes: String) {
         val debt = _debts.value.find { it.id == debtId } ?: return
         val payment = DebtPayment(
@@ -1364,6 +1548,13 @@ object NexoraRepository {
     }
 
     fun addClient(name: String, phone: String, address: String, creditLimit: Double, notes: String): Client {
+        checkAndUpdateSubscription()
+        val plan = _subscription.value.currentPlan
+        val clientsCount = _clients.value.size
+        if (clientsCount >= plan.maxClients) {
+            throw IllegalStateException("Limite do plano atingido: Máximo de ${plan.maxClients} clientes activos no ${plan.title}. Faça upgrade para Starter ou Pro.")
+        }
+
         val newClient = Client(
             id = "cli-${UUID.randomUUID().toString().take(8)}",
             name = name.trim(),
@@ -2336,7 +2527,8 @@ object NexoraRepository {
 
             // Asynchronously sync multi-tenant document tree in Firestore
             try {
-                val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                val dbId = "ai-studio-android-nexora-fbbcaacc-ed44-4093-bc01-cd89427354fe"
+                val db = com.google.firebase.firestore.FirebaseFirestore.getInstance(dbId)
                 val bizData = mapOf(
                     "id" to businessId,
                     "name" to storeName.trim(),
@@ -2444,32 +2636,65 @@ object NexoraRepository {
                 _lockoutTimeRemainingSeconds.value = 0
 
                 val cleanPhone = SecurityUtils.formatMozambiquePhone(phone)
-                val user = User(
-                    id = fbUser.uid,
-                    name = fbUser.displayName?.ifBlank { "Comerciante" } ?: "Comerciante",
+                val uid = fbUser.uid
+
+                var storeName = "NEXORA Loja"
+                var storeLocation = "Moçambique"
+                var businessType = "Comércio Geral"
+                var nuit = ""
+                var ownerName = fbUser.displayName?.ifBlank { "Comerciante" } ?: "Comerciante"
+
+                try {
+                    val dbId = "ai-studio-android-nexora-fbbcaacc-ed44-4093-bc01-cd89427354fe"
+                    val fs = com.google.firebase.firestore.FirebaseFirestore.getInstance(dbId)
+                    val docSnap = fs.collection("businesses").document(uid).get().await()
+                    if (docSnap.exists()) {
+                        storeName = docSnap.getString("name") ?: storeName
+                        storeLocation = docSnap.getString("city") ?: storeLocation
+                        businessType = docSnap.getString("businessType") ?: businessType
+                        nuit = docSnap.getString("nuit") ?: nuit
+                        ownerName = docSnap.getString("ownerName") ?: ownerName
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.w("NexoraRepository", "Firestore biz doc fetch note: ${e.message}")
+                }
+
+                val restoredUser = User(
+                    id = uid,
+                    name = ownerName,
                     phone = cleanPhone,
                     role = UserRole.DONO,
                     pinHash = "",
-                    storeName = "NEXORA Loja",
-                    storeLocation = "Moçambique",
-                    businessId = fbUser.uid,
+                    storeName = storeName,
+                    storeLocation = storeLocation,
+                    businessType = businessType,
+                    businessId = uid,
+                    nuit = nuit,
                     currencySymbol = "MT",
                     createdAt = System.currentTimeMillis()
                 )
-                _currentUser.value = user
-                _allUsers.value = listOf(user)
+
+                // 1. Await full sync from cloud to Room before displaying UI
+                try {
+                    withContext(Dispatchers.IO) {
+                        syncManager?.syncFromCloud(uid)
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.w("NexoraRepository", "syncFromCloud on login note: ${e.message}")
+                }
+
+                // 2. Clear in-memory state and bind Room flows
+                switchUser(restoredUser)
+
                 _isLoggedIn.value = true
                 _authScreenMode.value = com.example.data.model.AuthScreenMode.MAIN_APP
-
-                // Automatically restore/bind all business data from Room & Cloud
-                bindBusinessData(user.businessId)
 
                 addAuditLog(
                     action = AuditAction.DATA_ACCESS,
                     targetItem = "Autenticação Firebase",
-                    details = "Login efetuado com sucesso para o telemóvel $cleanPhone."
+                    details = "Login efetuado com sucesso para o telemóvel $cleanPhone. Dados restaurados da nuvem."
                 )
-                return Result.success(user)
+                return Result.success(restoredUser)
             } else {
                 _loginFailedAttempts.value += 1
                 if (_loginFailedAttempts.value >= 5) {

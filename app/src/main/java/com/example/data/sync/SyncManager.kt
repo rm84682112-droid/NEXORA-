@@ -19,7 +19,8 @@ import org.json.JSONObject
 
 class SyncManager(
     private val db: NexoraDatabase,
-    private val firestore: FirebaseFirestore? = null
+    private val firestore: FirebaseFirestore? = null,
+    private val context: Context? = null
 ) {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
@@ -33,8 +34,18 @@ class SyncManager(
 
     private fun getFirestoreInstance(): FirebaseFirestore? {
         if (firestore != null) return firestore
+        if (context != null) {
+            return try {
+                val dbId = context.getString(com.example.R.string.firestore_database_id)
+                FirebaseFirestore.getInstance(dbId)
+            } catch (e: Exception) {
+                Log.w("SyncManager", "FirebaseFirestore with dbId unavailable: ${e.message}")
+                null
+            }
+        }
         return try {
-            FirebaseFirestore.getInstance()
+            val dbId = "ai-studio-android-nexora-fbbcaacc-ed44-4093-bc01-cd89427354fe"
+            FirebaseFirestore.getInstance(dbId)
         } catch (e: Exception) {
             Log.w("SyncManager", "FirebaseFirestore unavailable: ${e.message}")
             null
@@ -126,7 +137,7 @@ class SyncManager(
                         val movEntity = db.stockMovementDao().getMovements(businessId).find { it.id == item.entityId }
                         if (movEntity != null) {
                             val map = movementToMap(movEntity.toDomain())
-                            bDoc.collection("stock_movements").document(item.entityId).set(map, SetOptions.merge()).await()
+                            bDoc.collection("movements").document(item.entityId).set(map, SetOptions.merge()).await()
                         }
                     }
                 }
@@ -224,8 +235,20 @@ class SyncManager(
                 db.supplierDao().insertAll(supEntities)
             }
 
-            // 7. Stock Movements
-            val movSnaps = bDoc.collection("stock_movements").get().await()
+            // 7. Supplier Purchases
+            val purSnaps = bDoc.collection("purchases").get().await()
+            val purEntities = purSnaps.documents.mapNotNull { doc ->
+                try {
+                    val pur = mapToPurchase(doc.id, doc.data ?: emptyMap())
+                    pur.toEntity(businessId)
+                } catch (e: Exception) { null }
+            }
+            if (purEntities.isNotEmpty()) {
+                db.supplierDao().insertAllPurchases(purEntities)
+            }
+
+            // 8. Stock Movements
+            val movSnaps = bDoc.collection("movements").get().await()
             val movEntities = movSnaps.documents.mapNotNull { doc ->
                 try {
                     val m = mapToMovement(doc.id, doc.data ?: emptyMap())
@@ -528,6 +551,31 @@ class SyncManager(
         "notes" to p.notes,
         "items" to p.items.map { mapOf("productId" to it.productId, "productName" to it.productName, "quantity" to it.quantity, "unitCost" to it.unitCost) }
     )
+
+    private fun mapToPurchase(id: String, map: Map<String, Any>): SupplierPurchase {
+        val rawItems = (map["items"] as? List<Map<String, Any>>) ?: emptyList()
+        val items = rawItems.map { iMap ->
+            PurchaseItem(
+                productId = (iMap["productId"] as? String) ?: "",
+                productName = (iMap["productName"] as? String) ?: "",
+                quantity = ((iMap["quantity"] as? Number)?.toInt()) ?: 1,
+                unitCost = ((iMap["unitCost"] as? Number)?.toDouble()) ?: 0.0
+            )
+        }
+        return SupplierPurchase(
+            id = id,
+            supplierId = (map["supplierId"] as? String) ?: "",
+            supplierName = (map["supplierName"] as? String) ?: "",
+            date = ((map["date"] as? Number)?.toLong()) ?: System.currentTimeMillis(),
+            totalCost = ((map["totalCost"] as? Number)?.toDouble()) ?: 0.0,
+            amountPaid = ((map["amountPaid"] as? Number)?.toDouble()) ?: 0.0,
+            debtRemaining = ((map["debtRemaining"] as? Number)?.toDouble()) ?: 0.0,
+            paymentMethod = try { PaymentMethod.valueOf((map["paymentMethod"] as? String) ?: "DINHEIRO") } catch (e: Exception) { PaymentMethod.DINHEIRO },
+            receiptOrInvoiceNumber = (map["receiptOrInvoiceNumber"] as? String) ?: "",
+            notes = (map["notes"] as? String) ?: "",
+            items = items
+        )
+    }
 
     private fun movementToMap(m: StockMovement): Map<String, Any?> = mapOf(
         "id" to m.id,

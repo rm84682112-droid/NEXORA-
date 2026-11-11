@@ -30,6 +30,7 @@ class NexoraPersistenceAndSyncTest {
 
     @After
     fun tearDown() {
+        NexoraRepository.initialize(context, null)
         testDatabase.close()
     }
 
@@ -64,6 +65,12 @@ class NexoraPersistenceAndSyncTest {
 
         // Assert 1: Product exists in in-memory state
         assertTrue(NexoraRepository.products.value.any { it.id == created.id })
+
+        // Wait up to 1 second for background IO to settle
+        for (i in 1..20) {
+            if (testDatabase.productDao().getProductById("biz-test-A", created.id) != null) break
+            kotlinx.coroutines.delay(50)
+        }
 
         // Assert 2: Product is physically saved in Room SQLite
         val inDb = testDatabase.productDao().getProductById("biz-test-A", created.id)
@@ -291,5 +298,139 @@ class NexoraPersistenceAndSyncTest {
         // Verify Account B's database queries cannot see Account A's product
         val prodsInDbB = testDatabase.productDao().getProducts(bizB)
         assertFalse("Account B must NEVER see Account A's products!", prodsInDbB.any { it.id == prodA.id })
+    }
+
+    @Test
+    fun test6_PlanLimitsAndTrialExpiration() = runBlocking {
+        val merchant = User(
+            id = "merchant-limits",
+            name = "Comerciante Limites",
+            phone = "+258845556677",
+            role = UserRole.DONO,
+            storeName = "Loja Limites",
+            storeLocation = "Maputo",
+            businessId = "biz-limits"
+        )
+        NexoraRepository.switchUser(merchant)
+        NexoraRepository.updateSubscription(
+            BusinessSubscription(
+                currentPlan = PlanTier.GRATUITO,
+                status = SubscriptionStatus.EXPIRADA
+            )
+        )
+
+        // Test product limit (Free = 20 max products)
+        for (i in 1..20) {
+            NexoraRepository.addProduct(
+                name = "Produto $i",
+                category = "Geral",
+                description = "Desc",
+                unitType = UnitType.UNIDADE,
+                unitsPerPackage = 1,
+                packagesCount = 10,
+                costPrice = 10.0,
+                sellingPrice = 20.0,
+                minStock = 1,
+                barcode = "BC-$i",
+                iconEmoji = "📦"
+            )
+        }
+
+        assertEquals(20, NexoraRepository.products.value.size)
+
+        var thrown = false
+        try {
+            NexoraRepository.addProduct(
+                name = "Produto 21 Excedente",
+                category = "Geral",
+                description = "Desc",
+                unitType = UnitType.UNIDADE,
+                unitsPerPackage = 1,
+                packagesCount = 10,
+                costPrice = 10.0,
+                sellingPrice = 20.0,
+                minStock = 1,
+                barcode = "BC-21",
+                iconEmoji = "📦"
+            )
+        } catch (e: IllegalStateException) {
+            thrown = true
+            assertTrue(e.message?.contains("Limite do plano atingido") == true)
+        }
+        assertTrue("Exceeding plan product limit must throw IllegalStateException", thrown)
+        assertEquals(20, NexoraRepository.products.value.size)
+
+        // Test client limit (Free = 20 max clients)
+        for (i in 1..20) {
+            NexoraRepository.addClient(
+                name = "Cliente $i",
+                phone = "+2588400000$i",
+                address = "Endereço $i",
+                creditLimit = 1000.0,
+                notes = "Nota $i"
+            )
+        }
+        assertEquals(20, NexoraRepository.clients.value.size)
+
+        var clientLimitThrown = false
+        try {
+            NexoraRepository.addClient(
+                name = "Cliente 21 Excedente",
+                phone = "+258840000099",
+                address = "Endereço",
+                creditLimit = 1000.0,
+                notes = ""
+            )
+        } catch (e: IllegalStateException) {
+            clientLimitThrown = true
+            assertTrue(e.message?.contains("Limite do plano atingido") == true)
+        }
+        assertTrue("Exceeding plan client limit must throw IllegalStateException", clientLimitThrown)
+        assertEquals(20, NexoraRepository.clients.value.size)
+
+        // Upgrade to Starter (100 products, 200 clients)
+        NexoraRepository.updateSubscription(
+            BusinessSubscription(
+                currentPlan = PlanTier.BASICO,
+                status = SubscriptionStatus.ACTIVA
+            )
+        )
+        // Now can add 21st product and client
+        val extraProd = NexoraRepository.addProduct(
+            name = "Produto 21 Starter",
+            category = "Geral",
+            description = "Desc",
+            unitType = UnitType.UNIDADE,
+            unitsPerPackage = 1,
+            packagesCount = 10,
+            costPrice = 10.0,
+            sellingPrice = 20.0,
+            minStock = 1,
+            barcode = "BC-21-STARTER",
+            iconEmoji = "📦"
+        )
+        assertNotNull(extraProd)
+        assertEquals(21, NexoraRepository.products.value.size)
+
+        val extraClient = NexoraRepository.addClient(
+            name = "Cliente 21 Starter",
+            phone = "+258840000021",
+            address = "Endereço",
+            creditLimit = 1000.0,
+            notes = ""
+        )
+        assertNotNull(extraClient)
+        assertEquals(21, NexoraRepository.clients.value.size)
+
+        // Non-destructive transition back to Free:
+        // Existing 21 products and 21 clients remain intact and consultable/editable
+        NexoraRepository.updateSubscription(
+            BusinessSubscription(
+                currentPlan = PlanTier.GRATUITO,
+                status = SubscriptionStatus.EXPIRADA
+            )
+        )
+        assertEquals(21, NexoraRepository.products.value.size)
+        assertEquals(21, NexoraRepository.clients.value.size)
     }
 }

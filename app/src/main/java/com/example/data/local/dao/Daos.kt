@@ -58,6 +58,9 @@ interface SaleDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(sales: List<SaleEntity>)
 
+    @Query("DELETE FROM sales WHERE businessId = :businessId AND id = :id")
+    suspend fun deleteSaleById(businessId: String, id: String)
+
     @Query("DELETE FROM sales WHERE businessId = :businessId")
     suspend fun clearBusinessSales(businessId: String)
 }
@@ -108,6 +111,9 @@ interface DebtDao {
 
     @Query("UPDATE debts SET remainingBalance = :balance, paymentsJson = :paymentsJson, updatedAt = :updatedAt WHERE businessId = :businessId AND id = :id")
     suspend fun updateBalanceAndPayments(businessId: String, id: String, balance: Double, paymentsJson: String, updatedAt: Long = System.currentTimeMillis())
+
+    @Query("DELETE FROM debts WHERE businessId = :businessId AND id = :id")
+    suspend fun deleteById(businessId: String, id: String)
 
     @Query("DELETE FROM debts WHERE businessId = :businessId")
     suspend fun clearBusinessDebts(businessId: String)

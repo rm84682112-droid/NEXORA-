@@ -4,14 +4,16 @@ enum class PlanTier(
     val title: String,
     val monthlyPriceMT: Double,
     val maxProducts: Int,
-    val maxUsers: Int,
+    val maxClients: Int,
+    val maxUsers: Int = maxClients,
+    val maxSalesPerMonth: Int,
     val aiAnalysesLimit: Int,
     val hasAdvancedReports: Boolean,
     val hasWhatsAppAutomation: Boolean
 ) {
-    GRATUITO("Plano Gratuito", 0.0, 50, 1, 5, false, false),
-    BASICO("Plano Básico", 1500.0, 300, 3, 25, true, true),
-    PROFISSIONAL("Plano Profissional", 3500.0, 5000, 15, 100, true, true)
+    GRATUITO("Plano Gratuito", 0.0, 20, 20, 20, 100, 5, false, false),
+    BASICO("Plano Starter", 49.0, 100, 200, 200, 500, 25, true, true),
+    PROFISSIONAL("Plano Profissional", 99.0, Int.MAX_VALUE, Int.MAX_VALUE, Int.MAX_VALUE, Int.MAX_VALUE, 100, true, true)
 }
 
 enum class SubscriptionStatus(val label: String) {

@@ -19,7 +19,8 @@ enum class AuditAction(val label: String) {
     DATA_ACCESS("Acesso a Dados Pessoais"),
     UPDATE_PRIVACY("Alteração de Preferências de Privacidade"),
     ERASE_ACCOUNT("Apagamento de Conta (Esquecimento)"),
-    LOG_DATA_INCIDENT("Registo de Incidente de Dados")
+    LOG_DATA_INCIDENT("Registo de Incidente de Dados"),
+    CANCEL_SALE("Cancelamento de Venda")
 }
 
 data class AuditLog(

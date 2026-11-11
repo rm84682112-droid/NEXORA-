@@ -11,7 +11,8 @@ enum class PaymentMethod(val displayName: String, val code: String) {
 data class CartItem(
     val product: Product,
     val quantity: Int,
-    val customPrice: Double? = null
+    val customPrice: Double? = null,
+    val unitCost: Double? = null
 ) {
     val unitPrice: Double
         get() = customPrice ?: product.sellingPrice
@@ -19,8 +20,11 @@ data class CartItem(
     val subtotal: Double
         get() = unitPrice * quantity
 
+    val effectiveUnitCost: Double
+        get() = unitCost ?: product.costPrice
+
     val costSubtotal: Double
-        get() = product.costPrice * quantity
+        get() = effectiveUnitCost * quantity
 }
 
 data class Sale(
